@@ -1,0 +1,54 @@
+# === 敏感文件 ===
+fastapi-backend/.env
+python-ai/api.yml
+config.txt
+.env
+*.env
+
+# === Java 后端（不上传） ===
+backend/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# === fastapi-backend ===
+fastapi-backend/__pycache__/
+fastapi-backend/storage/
+fastapi-backend/*.pyc
+
+# === python-ai ===
+python-ai/__pycache__/
+python-ai/story_ai_pkg/__pycache__/
+python-ai/chat_agent_pkg/__pycache__/
+python-ai/venv/
+python-ai/.idea/
+python-ai/test/__pycache__/
+
+# === frontend ===
+frontend/node_modules/
+frontend/dist/
+frontend/.npm-cache/
+frontend/.env.local
+frontend/.env.*.local
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === 系统文件 ===
+.DS_Store
+Thumbs.db
+
+# === 项目特定 ===
+.claude/
+LEARNING-PLAN.md
+面试准备指南.md
+settings.phase1.xml

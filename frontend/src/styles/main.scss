@@ -1,0 +1,19 @@
+:root {
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  color: #1f2937;
+  background: #f7f8fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}

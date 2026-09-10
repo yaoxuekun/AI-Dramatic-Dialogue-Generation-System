@@ -1,0 +1,19 @@
+mysql:
+  datasource:
+    username: root
+    password: your_password
+    url: jdbc:mysql://localhost:3306/springcloud?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+rabbitmq:
+  name-server: 127.0.0.1:5672
+  username: guest
+  password: guest
+redis:
+    database: 0
+    host: 127.0.0.1
+    port: 6379
+    jedis:
+      pool:
+        max-wait: 2000ms
+        min-idle: 2
+        max-idle: 8
