@@ -551,6 +551,56 @@ def generate_volume_sections(
     return get_story_detail(story_id, current_user, conn)
 
 
+# ====== 分卷正文生成（异步） ======
+@router.post("/{story_id}/volume-outline/{volumeId}/story/generate")
+def generate_volume_story(
+    story_id: int,
+    volume_id: int,
+    current_user: dict = Depends(get_current_user),
+    conn: Connection = Depends(get_db),
+):
+    """
+    分卷正文生成（异步）
+    """
+    user_id = current_user["id"]
+
+    story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
+    check_story(story)
+
+    volume = story_repository.find_volume_by_id_and_story_id(conn, volume_id, story_id)
+    if not volume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="分卷不存在或不属于该漫剧"
+        )
+
+    story_repository.update_story_status(conn, story_id, "volume_story_pending")
+
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
+    task_message = {
+        "taskType": TaskType.VOLUME_STORY_GENERATE,
+        "storyId": story_id,
+        "userId": user_id,
+        "volumeId": volume_id,
+        "volumeNumber": volume["volume_number"],
+        "volumeTitle": volume["title"],
+        "volumeSummary": volume["summary"],
+        "volumeContent": volume["content"],
+        "volumeEndingHook": volume["ending_hook"],
+        "genre": story["genre"] or "",
+        "storyStyle": story["style"] or "",
+        "synopsis": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+    }
+
+    publish_message(
+        routing_key=settings.RABBITMQ_ROUTING_KEY_STORY_REQUEST,
+        message_body=json.dumps(task_message, ensure_ascii=False),
+    )
+
+    return get_story_detail(story_id, current_user, conn)
+
+
 # ====== 4.9 小节资产图片生成（异步） ======
 @router.post("/{story_id}/volume-sections/{sessionId}/assets/generate")
 def generate_section_assets(
