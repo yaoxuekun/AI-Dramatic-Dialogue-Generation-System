@@ -2,7 +2,7 @@
 # 集中管理大模型 API Key 读取、LLM 实例初始化、回调处理器和进度日志函数
 # 所有需要调用大模型的模块（story_ai、chat_ai）都从这里导入共享实例
 
-# os：用于设置环境变量，通义千问和豆包 SDK 通过环境变量读取 API Key
+# os：用于设置环境变量
 import os
 
 # json：用于校验和修复大模型返回的 JSON 结构化输出
@@ -26,8 +26,8 @@ from typing import Any
 # yaml：用于解析 api.yml 中的 YAML 格式配置
 import yaml
 
-# ChatTongyi：LangChain 对通义千问（Tongyi）大模型的封装，支持 structured output 和流式调用
-from langchain_community.chat_models import ChatTongyi
+# ChatOpenAI：LangChain 对 OpenAI 兼容 API 的封装，支持 mimo 等国产模型
+from langchain_openai import ChatOpenAI
 
 # BaseCallbackHandler：LangChain 回调基类，用于监听大模型调用的生命周期事件
 from langchain_core.callbacks import BaseCallbackHandler
@@ -75,82 +75,82 @@ def load_api_config() -> dict:
 # 模块加载时立即读取配置，后续 LLM 实例初始化依赖这些环境变量
 api_config = load_api_config()
 
-# 提取通义千问 API Key，strip() 去除可能的首尾空白
-tongyi_api_key = str(api_config.get("tongyi", {}).get("api_key", "")).strip()
+# 提取 mimo API Key
+mimo_api_key = str(api_config.get("mimo", {}).get("api_key", "")).strip()
 
-# 提取豆包 API Key，用于豆包图片生成（SeedDream 模型）
+# 提取豆包 API Key，用于豆包图片生成
 doubao_api_key = str(api_config.get("doubao", {}).get("ARK_API_KEY", "")).strip()
 
-
-# 将 API Key 写入环境变量，LangChain ChatTongyi 和豆包 OpenAI SDK 通过环境变量自动读取
-if tongyi_api_key:
-    os.environ["DASHSCOPE_API_KEY"] = tongyi_api_key
-if doubao_api_key:
-    os.environ["ARK_API_KEY"] = doubao_api_key
+# API 地址
+MIMO_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1"
+MIMO_MODEL = "mimo-v2.5"
 
 
 # ── LLM 实例定义 ──────────────────────────────────────────────────────
-# 通义千问 qwen-max 模型，不同场景使用不同参数配置
+# mimo-v2.5 模型，不同场景使用不同参数配置
 
 # 温度为 0 的 LLM：用于需要确定性输出的场景（如判断分卷数量、小节数量、资产识别）
-# temperature=0 表示输出最确定性的结果，top_p=0.2 进一步限制采样范围
-# streaming=False 因为结构化输出不支持流式
-llm_temperature_0 = ChatTongyi(
-    model="qwen-max",       # 通义千问最强大的模型
-    temperature=0,           # 温度为 0，输出最确定性
-    top_p=0.2,               # 核采样概率，限制为最可能的 20% token
-    streaming=False,         # 非流式，用于结构化输出
+llm_temperature_0 = ChatOpenAI(
+    model=MIMO_MODEL,
+    api_key=mimo_api_key or "dummy",
+    base_url=MIMO_BASE_URL,
+    temperature=0,
+    streaming=False,
 )
 
 # 结构化输出 LLM：用于需要返回 JSON 结构的场景（如大纲生成、分卷生成、脚本生成）
-# temperature=0.8 提供适度创造性，streaming=False 因为 with_structured_output 需要完整 JSON
-structured_llm_base = ChatTongyi(
-    model="qwen-max",       # 通义千问最强大的模型
-    temperature=0.8,         # 适度创造性
-    streaming=False,         # 非流式，结构化输出需要完整 JSON
+structured_llm_base = ChatOpenAI(
+    model=MIMO_MODEL,
+    api_key=mimo_api_key or "dummy",
+    base_url=MIMO_BASE_URL,
+    temperature=0.8,
+    streaming=False,
 )
 
 # 流式文本 LLM：用于生成长篇正文的场景（如小节故事生成）
-# streaming=True 开启流式输出，控制台可以实时看到生成的 token
-streaming_text_llm_base = ChatTongyi(
-    model="qwen-max",       # 通义千问最强大的模型
-    temperature=0.8,         # 适度创造性
-    streaming=True,          # 流式输出，控制台实时打印 token
+streaming_text_llm_base = ChatOpenAI(
+    model=MIMO_MODEL,
+    api_key=mimo_api_key or "dummy",
+    base_url=MIMO_BASE_URL,
+    temperature=0.8,
+    streaming=True,
 )
 
 # 路由LLM
-Router = ChatTongyi(
-    model="qwen-max",   # 通义千问最强大的模型
-    temperature=0,           # 温度为 0，输出最确定性
-    top_p=0.2,               # 核采样概率，限制为最可能的 20% token
-    streaming=False,         # 非流式，用于结构化输出
+Router = ChatOpenAI(
+    model=MIMO_MODEL,
+    api_key=mimo_api_key or "dummy",
+    base_url=MIMO_BASE_URL,
+    temperature=0,
+    streaming=False,
 )
 
 
-def get_doubao_image_client():
-    """懒加载豆包图片生成客户端。
+def get_image_client():
+    """懒加载图片生成客户端。
 
-    使用 OpenAI SDK 兼容接口调用豆包 SeedDream 4.5 模型生成图片。
+    使用 OpenAI SDK 兼容接口调用 GPT Image 2 模型生成图片。
     采用懒加载模式，避免未安装 openai 包时影响 FastAPI 启动。
 
     Returns:
-        OpenAI: 配置好豆包 API 的 OpenAI 客户端实例。
+        OpenAI: 配置好 API 的 OpenAI 客户端实例。
 
     Raises:
-        RuntimeError: 如果 ARK_API_KEY 环境变量未设置。
+        RuntimeError: 如果图片 API Key 未设置。
     """
     # 延迟导入 openai，只有实际调用图片生成时才需要
     from openai import OpenAI
 
-    # 从环境变量读取豆包 API Key
-    api_key = os.environ.get("ARK_API_KEY")
+    # 从 api.yml 读取图片 API Key
+    api_key = str(api_config.get("image", {}).get("api_key", "")).strip()
+    base_url = str(api_config.get("image", {}).get("base_url", "https://api.ppkey.cc/v1")).strip()
     if not api_key:
-        raise RuntimeError("ARK_API_KEY is required for Doubao image generation")
+        raise RuntimeError("Image API Key is required for GPT Image 2 generation")
 
-    # 创建 OpenAI 客户端，指向豆包 API 端点
+    # 创建 OpenAI 客户端
     return OpenAI(
-        base_url="https://ark.cn-beijing.volces.com/api/v3",  # 豆包 API 地址
-        api_key=api_key,                                        # 豆包 API Key
+        base_url=base_url,
+        api_key=api_key,
     )
 
 
@@ -191,7 +191,7 @@ class ConsoleStreamingCallback(BaseCallbackHandler):
     def on_chat_model_start(self, serialized, messages, **kwargs) -> None:
         """LangChain ChatModel 请求开始时的回调。
 
-        当 LangChain 调用 ChatTongyi 时自动触发，打印请求开始日志。
+        当 LangChain 调用 ChatOpenAI 时自动触发，打印请求开始日志。
 
         Args:
             serialized: 模型序列化信息（未使用）。

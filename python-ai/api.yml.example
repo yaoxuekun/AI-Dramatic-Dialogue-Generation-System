@@ -1,8 +1,12 @@
 # Python AI 引擎 API 配置
 # 复制此文件为 api.yml 并填入你的 API Key
 
-tongyi:
-  api_key: "your_tongyi_api_key"
+mimo:
+  api_key: "your_mimo_api_key"
+
+image:
+  api_key: "your_gpt_image_api_key"
+  base_url: "https://api.ppkey.cc/v1"
 
 doubao:
   ARK_API_KEY: "your_doubao_api_key"

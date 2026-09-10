@@ -27,7 +27,7 @@ from fastapi import HTTPException
 # 从 ai_runtime 导入共享的 LLM 实例和工具函数
 from ai_runtime import (
     ConsoleStreamingCallback,
-    get_doubao_image_client,
+    get_image_client,
     invoke_structured_output_with_guard,
     llm_temperature_0,
     log_progress,
@@ -133,38 +133,35 @@ def format_existing_asset_context(asset_registry: dict[str, SectionAssetItem]) -
 
 
 def save_doubao_image_file(prompt: str) -> str:
-    """调用豆包图片生成接口并把返回图片保存到本地 storage 目录。
+    """调用图片生成接口并把返回图片保存到本地 storage 目录。
 
     处理流程：
-    1. 获取豆包 OpenAI 客户端
-    2. 调用 SeedDream 4.5 模型生成图片
+    1. 获取 OpenAI 客户端
+    2. 调用 GPT Image 2 模型生成图片
     3. 下载返回的图片 URL
     4. 保存到 backend/storage/generated-assets/{日期}/{uuid}.png
 
     Args:
-        prompt: 豆包图片生成提示词。
+        prompt: 图片生成提示词。
 
     Returns:
         str: 图片的相对路径，如 "generated-assets/2026-05-22/xxx.png"。
 
     Raises:
-        RuntimeError: 如果豆包返回的响应中没有图片 URL。
+        RuntimeError: 如果返回的响应中没有图片 URL。
     """
-    # 获取豆包客户端（懒加载）
-    client = get_doubao_image_client()
+    # 获取客户端（懒加载）
+    client = get_image_client()
 
     # 打印分隔线，便于日志阅读
     print("------------------------------------------------------------------------------")
 
-    # 调用豆包图片生成 API
+    # 调用图片生成 API
     images_response = client.images.generate(
-        model="doubao-seedream-4-5-251128",  # 豆包 SeedDream 4.5 模型
-        prompt=prompt,                        # 图片生成提示词
-        size="2K",                            # 图片分辨率 2K
-        response_format="url",                # 返回 URL 格式
-        extra_body={
-            "watermark": True,                # 添加水印
-        },
+        model="gpt-image-2",  # GPT Image 2 模型
+        prompt=prompt,
+        size="1024x1024",
+        response_format="url",
     )
 
     # 打印提示词和响应（调试用）
