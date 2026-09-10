@@ -17,11 +17,14 @@ class SendMessageRequest(BaseModel):
 # 响应体
 class MessageResponse(BaseModel):
     id: int
-    sessionId: str
+    session_id: int = Field(..., alias="sessionId")
     role: str
     content: str
     metadata: Optional[dict] = None
-    createdAt: datetime
+    created_at: datetime = Field(..., alias="createdAt")
+
+    class Config:
+        populate_by_name = True
 
 
 class ChatSessionResponse(BaseModel):

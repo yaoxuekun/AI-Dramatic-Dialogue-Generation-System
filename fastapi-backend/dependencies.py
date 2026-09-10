@@ -106,17 +106,3 @@ def require_root(
             status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员权限"
         )
     return current_user
-
-
-def require_role(current_user: dict = Depends(get_current_user)):
-    """通用角色层级检查（额外便携封装，方便后续复用）"""
-    role_priorty = {"USER": 1, "ADMIN": 2, "ROOT": 3}
-    user_priorty = role_priorty.get(current_user["role"], 0)
-    require_priorty = role_priorty.get(require_role, 0)
-
-    if user_priorty < require_priorty:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"权限不足，需要{require_role}及以上角色",
-        )
-    return current_user
