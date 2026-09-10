@@ -70,7 +70,7 @@ cd AI-Dramatic-Dialogue-Generation-System
 
 2. **数据库初始化**
 ```bash
-mysql -u root -p < backend/src/main/resources/db/init.sql
+mysql -u root -p < fastapi-backend/db/init.sql
 ```
 
 3. **配置后端环境变量**
@@ -143,6 +143,8 @@ AI-Dramatic-Dialogue-Generation-System/
 │   │   ├── result_consumer.py     # RabbitMQ 结果消费者
 │   │   ├── chat_persist_consumer.py # 聊天持久化消费者
 │   │   └── chat_dispatcher.py     # 对话白名单分发
+│   ├── db/                        # 数据库初始化脚本
+│   │   └── init.sql               # 数据库初始化
 │   └── utils/                     # 工具类
 │
 ├── python-ai/                     # Python AI 引擎
@@ -174,10 +176,6 @@ AI-Dramatic-Dialogue-Generation-System/
 │       ├── api/                   # API 接口封装
 │       ├── router/                # Vue Router 路由
 │       └── types/                 # TypeScript 类型
-│
-├── backend/                       # SQL 初始化脚本
-│   └── src/main/resources/db/
-│       └── init.sql               # 数据库初始化
 │
 └── config.txt.example             # 基础设施配置模板
 ```
