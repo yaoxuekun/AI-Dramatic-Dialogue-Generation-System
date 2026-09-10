@@ -10,7 +10,7 @@
 - **智能对话交互**：多阶段 AI Agent 流水线（指代消解→意图路由→记忆管理→子Agent执行），自动理解用户意图并路由到对应操作
 - **渐进式生成**：多轮对话逐步细化角色、剧情、风格设定
 - **完整漫剧内容**：自动生成剧情大纲、分卷大纲、小节故事、分镜脚本
-- **AI 资产生成**：自动识别人物/场景，调用豆包生成三视图设定图和环境概念图
+- **AI 资产生成**：自动识别人物/场景，调用 GPT Image 2 生成三视图设定图和环境概念图
 - **异步任务架构**：RabbitMQ 消息队列驱动非对话 AI 任务，支持逐卷/逐节增量回传
 - **智能记忆管理**：Redis 短期记忆 + 长期记忆压缩 + 关键事实提取，支持跨会话上下文理解
 - **提示词动态管理**：数据库配置提示词，按题材/风格精确匹配特定提示词
@@ -25,8 +25,8 @@
 |------|----------|
 | **前端** | Vue 3 + TypeScript + Pinia + Vue Router + Axios + Element Plus |
 | **后端** | Python + FastAPI + PyMySQL + Redis + RabbitMQ |
-| **AI引擎** | Python + LangChain + FastAPI + Pydantic + 通义千问 (qwen-max) |
-| **图片生成** | 豆包 SeedDream 4.5 |
+| **AI引擎** | Python + LangChain + FastAPI + Pydantic + mimo-v2.5 (qwen-max) |
+| **图片生成** | GPT Image 2 |
 | **数据库** | MySQL 8.0 + Redis 7 |
 | **消息队列** | RabbitMQ 3.12+ |
 
@@ -84,7 +84,7 @@ cp .env.example .env
 ```bash
 cd python-ai
 cp api.yml.example api.yml
-# 编辑 api.yml，填入通义千问和豆包 API Key
+# 编辑 api.yml，填入 mimo 和图片生成 API Key
 ```
 
 ### 启动服务
@@ -199,7 +199,7 @@ AI-Dramatic-Dialogue-Generation-System/
 1. **剧情大纲**：用户输入题材和风格，AI 生成完整大纲和角色设定
 2. **分卷大纲**：两阶段生成，逐卷增量回传
 3. **小节故事**：逐节生成具体故事细节
-4. **人物/场景图片**：识别资产并调用豆包生成图片
+4. **人物/场景图片**：识别资产并调用 GPT Image 2 生成图片
 5. **分镜脚本**：生成镜头级分镜脚本
 
 ### 4. 提示词动态管理
@@ -269,10 +269,10 @@ draft → generating → volume_pending → volume_section_pending
 
 3. **故事状态变为 failed**
    - 查看 Python 控制台日志
-   - 确认通义千问 API Key 有效
+   - 确认mimo-v2.5 API Key 有效
 
 4. **图片无法显示**
-   - 确认豆包 API Key 有效
+   - 确认图片生成 API Key 有效
    - 确认 `storage/` 目录有写入权限
 
 ## 许可证
