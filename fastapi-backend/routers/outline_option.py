@@ -34,19 +34,19 @@ def create_outline_option(
 ):
     """新增大纲配置（需要 ADMIN 或 ROOT 权限）"""
     # 唯一性校验：同类型下名称不能重复
-    existing = outline_option_repository.find_by_type_and_name(conn, req.option_type, req.name)
+    existing = outline_option_repository.find_by_type_and_name(conn, req.type, req.name)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{req.option_type} 类型下已存在名称为 '{req.name}' 的配置",
+            detail=f"{req.type} 类型下已存在名称为 '{req.name}' 的配置",
         )
 
     new_id = outline_option_repository.create(
         conn,
-        option_type=req.option_type,
+        option_type=req.type,
         name=req.name,
         description=req.description,
-        sort_order=req.sort_order,
+        sort_order=req.sortOrder,
         enabled=req.enabled,
     )
 
@@ -72,12 +72,12 @@ def update_outline_option(
     # 如果修改了名称，校验唯一性
     if req.name is not None and req.name != existing["name"]:
         duplicate = outline_option_repository.find_by_type_and_name(
-            conn, existing["option_type"], req.name
+            conn, existing["type"], req.name
         )
         if duplicate:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{existing['option_type']} 类型下已存在名称为 '{req.name}' 的配置",
+                detail=f"{existing['type']} 类型下已存在名称为 '{req.name}' 的配置",
             )
 
     outline_option_repository.update(
@@ -85,7 +85,7 @@ def update_outline_option(
         option_id=option_id,
         name=req.name,
         description=req.description,
-        sort_order=req.sort_order,
+        sort_order=req.sortOrder,
         enabled=req.enabled,
     )
 

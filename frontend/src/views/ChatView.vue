@@ -24,6 +24,7 @@
             type="primary"
             plain
             :loading="storyStore.isGenerating || isCreating"
+            :disabled="!chatStore.currentSessionId"
             @click="handleGenerateStory"
           >
             生成剧情大纲
@@ -332,6 +333,7 @@ async function submitStoryOutline() {
 
   await runSafely(async () => {
     const story = await storyStore.generateStory({
+      session_id: chatStore.currentSessionId!,
       genre: outlineForm.genre,
       style: outlineForm.style,
       plot: outlineForm.plot || undefined,

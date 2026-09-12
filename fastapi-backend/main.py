@@ -151,7 +151,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     error_msg = ";".join(errors) if errors else "参数校验失败"
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        status_code=422,
         content=error_response(
             code=ErrorCode.VALIDATION_ERROR, message=error_msg
         ).model_dump(),

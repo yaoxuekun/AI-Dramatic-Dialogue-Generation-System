@@ -46,7 +46,7 @@
             <h2>剧情大纲</h2>
             <el-button link type="primary" @click="openManualEditDialog">手动修改</el-button>
           </div>
-          <p class="script-text">{{ story.fullContent || '暂无剧情大纲。' }}</p>
+          <p class="script-text">{{ story.full_content || '暂无剧情大纲。' }}</p>
         </article>
 
         <article class="panel">
@@ -278,7 +278,7 @@
         </el-form-item>
         <el-form-item label="剧情大纲">
           <el-input
-            v-model="manualForm.fullContent"
+            v-model="manualForm.full_content"
             type="textarea"
             :autosize="{ minRows: 10, maxRows: 18 }"
           />
@@ -484,7 +484,7 @@ const editForm = reactive({
 });
 const manualForm = reactive({
   synopsis: '',
-  fullContent: '',
+  full_content: '',
   characters: [] as EditableCharacter[],
 });
 const volumeManualForm = reactive({
@@ -576,7 +576,7 @@ function openManualEditDialog() {
     return;
   }
   manualForm.synopsis = story.value.synopsis || '';
-  manualForm.fullContent = story.value.fullContent || '';
+  manualForm.full_content = story.value.full_content || '';
   manualForm.characters = story.value.characters.map(toEditableCharacter);
   manualEditDialogVisible.value = true;
 }
@@ -630,7 +630,7 @@ async function saveManualDetail() {
   try {
     await storyStore.updateStoryDetail(story.value.id, {
       synopsis: manualForm.synopsis,
-      fullContent: manualForm.fullContent,
+      full_content: manualForm.full_content,
       characters,
     });
     ElMessage.success('剧情大纲和角色设定已保存');
@@ -683,7 +683,7 @@ async function generateVolumeOutline() {
   if (!story.value) {
     return;
   }
-  if (!story.value.fullContent) {
+  if (!story.value.full_content) {
     ElMessage.warning('请先生成或填写剧情大纲');
     return;
   }

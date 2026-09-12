@@ -73,7 +73,7 @@ export interface StoryAsset {
 }
 
 export interface StoryDetailResponse extends StoryResponse {
-  fullContent?: string;
+  full_content?: string;
   volumeOutlines: StoryVolumeOutline[];
   characters: StoryCharacter[];
   scenes: StoryScene[];
@@ -87,6 +87,7 @@ export interface StoryUpdateRequest {
 }
 
 export interface StoryGenerateRequest {
+  session_id: number;
   genre: string;
   style: string;
   plot?: string;
@@ -114,7 +115,7 @@ export interface StoryVolumeOutlineUpdateRequest {
 
 export interface StoryDetailUpdateRequest {
   synopsis?: string;
-  fullContent?: string;
+  full_content?: string;
   characters?: StoryCharacter[];
 }
 

@@ -18,6 +18,7 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from pymysql.connections import Connection
 from datetime import datetime
 from schemas.auth import (
@@ -37,6 +38,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/auth",
 )
+
+
+@router.post("/token")
+def login_for_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    conn: Connection = Depends(get_db),
+):
+    """
+    OAuth2 兼容登录端点（用于 Swagger UI Authorize）
+    """
+    user = user_repository.find_by_username(conn, form_data.username)
+    if not user or not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户名或密码错误",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = generate_token(user["id"], user["username"])
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/register")

@@ -20,7 +20,7 @@ from utils import jwt_util
 logger = logging.getLogger(__name__)
 
 # 配置 OAuth2 密码流（用于 Swagger 文档的认证按钮）
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
 def get_current_user(

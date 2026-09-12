@@ -3,6 +3,22 @@ from pymysql.connections import Connection
 from datetime import datetime
 
 
+def _to_camel_case(row: Dict[str, Any]) -> Dict[str, Any]:
+    """将 snake_case 字段名转换为 camelCase"""
+    if not row:
+        return row
+    return {
+        "id": row.get("id"),
+        "type": row.get("option_type"),
+        "name": row.get("name"),
+        "description": row.get("description"),
+        "sortOrder": row.get("sort_order"),
+        "enabled": row.get("enabled"),
+        "createdAt": str(row.get("created_at", "")),
+        "updatedAt": str(row.get("updated_at", "")),
+    }
+
+
 def find_all(
     conn: Connection,
     option_type: Optional[str] = None,
@@ -24,7 +40,8 @@ def find_all(
 
     cur = conn.cursor()
     cur.execute(sql, params)
-    return cur.fetchall()
+    rows = cur.fetchall()
+    return [_to_camel_case(row) for row in rows]
 
 
 def find_by_id(conn: Connection, option_id: int) -> Optional[Dict[str, Any]]:
@@ -34,7 +51,8 @@ def find_by_id(conn: Connection, option_id: int) -> Optional[Dict[str, Any]]:
         "SELECT id, option_type, name, description, sort_order, enabled, created_at, updated_at FROM story_outline_options WHERE id = %s",
         (option_id,),
     )
-    return cur.fetchone()
+    row = cur.fetchone()
+    return _to_camel_case(row) if row else None
 
 
 def find_by_type_and_name(
