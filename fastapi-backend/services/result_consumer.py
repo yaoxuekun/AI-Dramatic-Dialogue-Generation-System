@@ -161,6 +161,10 @@ def _dispatch(msg: Dict[str, Any]) -> None:
 
     # ── VOLUME_OUTLINE_GENERATE / VOLUME_OUTLINE_REVISE ──
     elif task_type in ("VOLUME_OUTLINE_GENERATE", "VOLUME_OUTLINE_REVISE"):
+        if completed:
+            # 完成时先清空旧分卷，再插入新分卷
+            with database.get_db_cursor() as conn:
+                story_repository.delete_volume_outlines_by_story_id(conn, story_id)
         _save_volume_outlines(story_id, msg.get("volumeOutline"))
         if completed:
             _update_status(story_id, _NEXT_STATUS.get(task_type, StoryStatus.DRAFT))

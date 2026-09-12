@@ -149,7 +149,7 @@ def get_story_detail(
                 summary=v["summary"],
                 content=v["content"],
                 ending_hook=v["ending_hook"],
-                detailed_content=v["detail_content"],
+                detailed_content=v.get("detailed_content"),
                 sections=volume_sections,
             )
         )
@@ -382,11 +382,8 @@ def generate_volume_outline(
     story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
     check_story(story)
 
-    # 3.清空旧分卷
-    story_repository.delete_volume_outlines_by_story_id(conn, story_id)
-
-    # 4.更改状态
-    story_repository.update_story_status(conn, story_id, "volume_pending")
+    # 2.更改状态（不删除旧分卷，等新数据生成成功后再清理）
+    story_repository.update_story_status(conn, story_id, "generating")
 
     # 5.投递 RabbitMQ 任务
     characters = story_repository.find_characters_by_story_id(conn, story_id)

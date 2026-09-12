@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 
 
@@ -150,8 +150,8 @@ class StoryResponse(BaseModel):
     status: str
     view_count: int = 0
     like_count: int = 0
-    updated_at: datetime
-    created_at: datetime
+    updated_at: Any
+    created_at: Any
 
 
 class StoryDetailResponse(BaseModel):
@@ -168,8 +168,8 @@ class StoryDetailResponse(BaseModel):
     status: str
     view_count: int = 0
     like_count: int = 0
-    created_at: datetime
-    updated_at: datetime
+    created_at: Any
+    updated_at: Any
     characters: List[CharacterResponse] = []
     volume_outlines: List[VolumeOutlineResponse] = []
     assets: List[AssetResponse] = []
