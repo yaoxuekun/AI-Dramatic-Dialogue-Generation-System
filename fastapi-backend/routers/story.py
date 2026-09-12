@@ -399,7 +399,15 @@ def generate_volume_outline(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role_position", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
     }
 
     publish_message(
