@@ -32,23 +32,12 @@ class StoryStatus:
     SECTION_SCRIPT_PENDING = "section_script_pending"
     FAILED = "failed"
 
-    BUSY_STATUSES = [
-        GENERATING,
-        REVISING,
-        VOLUME_PENDING,
-        VOLUME_REVISING,
-        VOLUME_STORY_PENDING,
-        VOLUME_SECTION_PENDING,
-        SECTION_ASSET_PENDING,
-        SECTION_SCRIPT_PENDING,
-    ]
 
+# 忙碌状态列表（AI 正在处理中，不允许提交新任务）
+# "xxx_pending" 表示等待用户操作，不是忙碌状态
 BUSY_STATUSES = [
-    "generating",
-    "revising",
-    "volume_pending",
-    "volume_revising",
-    "volume_section_pending",
-    "section_asset_pending",
-    "section_script_pending",
+    "generating",         # AI 正在生成
+    "revising",           # AI 正在修改
+    "volume_revising",    # AI 正在修改分卷
+    "volume_story_pending",  # AI 正在生成分卷正文
 ]

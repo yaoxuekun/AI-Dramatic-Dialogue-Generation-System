@@ -298,15 +298,18 @@ def revise_story_outline(
     story_repository.update_story_status(conn, story_id, "revising")
 
     # 4.投递 RabbitMQ 任务
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
     task_message = {
         "taskType": TaskType.STORY_OUTLINE_REVISE,
         "storyId": story_id,
         "userId": user_id,
-        "genre": story["genre"],
-        "storyStyle": story["style"],
+        "title": story["title"] or "",
+        "genre": story["genre"] or "",
+        "storyStyle": story["style"] or "",
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
         "suggestion": req.suggestion,
-        "currentOutline": story["full_context"] or "",  # 当前大纲内容 （仅供 AI 参考）
-        "currentSynopsis": story["synopsis"] or "",
     }
 
     publish_message(
@@ -386,14 +389,17 @@ def generate_volume_outline(
     story_repository.update_story_status(conn, story_id, "volume_pending")
 
     # 5.投递 RabbitMQ 任务
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
     task_message = {
         "taskType": TaskType.VOLUME_OUTLINE_GENERATE,
         "storyId": story_id,
         "userId": user_id,
+        "title": story["title"] or "",
         "genre": story["genre"] or "",
         "storyStyle": story["style"] or "",
-        "synopsis": story["synopsis"] or "",
-        "fullContent": story["full_content"] or "",
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
     }
 
     publish_message(
@@ -437,14 +443,19 @@ def revise_volume_outline(
     story_repository.update_story_status(conn, story_id, "volume_revising")
 
     # 5. 投递 RabbitMQ 任务
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
     task_message = {
         "taskType": TaskType.VOLUME_OUTLINE_REVISE,
         "storyId": story_id,
         "userId": user_id,
+        "title": story["title"] or "",
         "genre": story["genre"] or "",
         "storyStyle": story["style"] or "",
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "volumeOutlines": existing_volumes,
         "suggestion": req.suggestion,
-        "currentVolumes": [dict[v] for v in existing_volumes],  # 当前分卷列表，供ai参考
     }
 
     publish_message(
@@ -526,20 +537,20 @@ def generate_volume_sections(
     story_repository.update_story_status(conn, story_id, "volume_section_pending")
 
     # 5.投递 RabbitMQ 任务
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
     task_message = {
         "taskType": TaskType.VOLUME_SECTION_GENERATE,
         "storyId": story_id,
         "userId": user_id,
         "volumeId": volume_id,
         "volumeNumber": volume["volume_number"],
-        "volumeTitle": volume["title"],
-        "volumeSummary": volume["summary"],
-        "volumeContent": volume["content"],
-        "volumeEndingHook": volume["ending_hook"],
-        "volumeDetailedContent": volume["detailed_content"],
+        "title": story["title"] or "",
         "genre": story["genre"] or "",
         "storyStyle": story["style"] or "",
-        "fullContent": story["full_content"] or "",
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "volumeOutline": volume,
     }
 
     publish_message(
@@ -639,21 +650,23 @@ def generate_section_assets(
     existing_assets = story_repository.find_assets_by_story_id(conn, story_id)
 
     # 5.投递 RabbitMQ 任务
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
+    volume = story_repository.find_volume_by_id_and_story_id(conn, section["volume_id"], story_id)
     task_message = {
         "taskType": TaskType.SECTION_ASSET_GENERATE,
         "storyId": story_id,
         "userId": user_id,
+        "volumeId": section["volume_id"],
         "sectionId": section_id,
-        "sectionNumber": section["section_number"],
-        "sectionTitle": section["title"],
-        "sectionSummary": section.get("summary") or "",
-        "sectionContent": section.get("content") or "",
-        "sectionEndingHook": section.get("ending_hook") or "",
-        "volumeNumber": section.get("volume_number"),
-        "volumeTitle": section.get("volume_title"),
+        "title": story["title"] or "",
         "genre": story["genre"] or "",
         "storyStyle": story["style"] or "",
-        "existingAssets": existing_assets,  # 已有资产列表，AI 可复用
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "volumeOutline": volume,
+        "section": section,
+        "existingAssets": existing_assets,
     }
 
     publish_message(
@@ -700,21 +713,22 @@ def generate_section_script(
     story_repository.update_story_status(conn, story_id, "section_script_pending")
 
     # 4. 构造 RabbitMQ 任务消息
+    characters = story_repository.find_characters_by_story_id(conn, story_id)
+    volume = story_repository.find_volume_by_id_and_story_id(conn, section["volume_id"], story_id)
     task_message = {
         "taskType": TaskType.SECTION_SCRIPT_GENERATE,
         "storyId": story_id,
         "userId": user_id,
+        "volumeId": section["volume_id"],
         "sectionId": section_id,
-        "sectionNumber": section["section_number"],
-        "sectionTitle": section["title"],
-        "sectionSummary": section.get("summary") or "",
-        "sectionContent": section.get("content") or "",
-        "sectionEndingHook": section.get("ending_hook") or "",
-        "volumeNumber": section.get("volume_number"),
-        "volumeTitle": section.get("volume_title"),
+        "title": story["title"] or "",
         "genre": story["genre"] or "",
         "storyStyle": story["style"] or "",
-        "fullContent": story["full_content"] or "",
+        "storySummary": story["synopsis"] or "",
+        "outline": story["full_content"] or "",
+        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "volumeOutline": volume,
+        "section": section,
     }
 
     # 5. 投递到 RabbitMQ

@@ -941,7 +941,8 @@ function stopStoryPolling() {
 }
 
 function isProcessingStatus(status?: string) {
-  return status === 'generating' || status === 'revising' || status === 'volume_pending' || status === 'volume_story_pending' || status === 'volume_section_pending' || status === 'section_asset_pending' || status === 'section_script_pending';
+  // 只有 AI 正在处理的状态才是"忙碌"，xxx_pending 表示等待用户操作
+  return status === 'generating' || status === 'revising' || status === 'volume_revising' || status === 'volume_story_pending';
 }
 
 function syncSelectedVolume() {
