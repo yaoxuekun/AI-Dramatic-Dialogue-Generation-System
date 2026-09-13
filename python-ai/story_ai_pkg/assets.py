@@ -33,6 +33,24 @@ from ai_runtime import (
     log_progress,
 )
 
+# re：用于检测提示词中的中文字符
+import re
+
+
+def _ensure_english_prompt(text: str) -> str:
+    """如果提示词包含中文，用 LLM 翻译为英文（图片 API 不支持中文）。"""
+    if not text or not re.search(r'[一-鿿]', text):
+        return text
+    try:
+        from langchain_core.messages import HumanMessage
+        resp = llm_temperature_0.invoke([
+            HumanMessage(content=f"Translate the following Chinese text to English. Output ONLY the translation, nothing else:\n\n{text}")
+        ])
+        translated = resp.content.strip()
+        return translated if translated else text
+    except Exception:
+        return text
+
 # 从 formatters 导入文本格式化工具
 from .formatters import build_characters_text
 
@@ -253,15 +271,21 @@ def generate_asset_image_path(
     """
     log_progress(trace_id, f"calling doubao image generation for {asset_type}: {asset_name}", started_at, scope)
     try:
-        # 构建豆包提示词（根据资产类型分流：人物三视图 vs 场景概念图）
-        prompt_doubao = build_doubao_prompt(title, story_style, asset_type, asset_name, image_prompt)
+        # 图片 API 不支持中文提示词，统一翻译为英文
+        safe_title = _ensure_english_prompt(title)
+        safe_style = _ensure_english_prompt(story_style or "")
+        safe_name = _ensure_english_prompt(asset_name)
+        safe_prompt = _ensure_english_prompt(image_prompt)
+        # 构建提示词（根据资产类型分流：人物三视图 vs 场景概念图）
+        prompt_doubao = build_doubao_prompt(safe_title, safe_style, asset_type, safe_name, safe_prompt)
+        print(f"[image-prompt] {prompt_doubao[:200]}...")
 
         # 调用豆包生成并保存图片
         image_path = save_doubao_image_file(prompt_doubao)
         return image_path, None, True
     except Exception as exc:
         # 图片生成失败，记录错误但不中断流程
-        print("图片生成失败")
+        print(f"图片生成失败: {exc}")
         return None, str(exc), True
 
 
@@ -319,13 +343,16 @@ def build_character_three_view_prompt(
         str: 人物三视图提示词。
     """
     return (
-        f"为漫剧《{title}》生成角色“{asset_name}”的人物三视图设定图。\n"
-        f"用户设定的统一漫剧风格：{resolved_style}\n"
-        f"角色描述：{image_prompt}\n"
-        "画面要求：同一角色必须在同一张图中展示正面、侧面、背面三视图，三视图保持完全一致的发型、脸型、服装、配饰、身材比例和色彩方案。\n"
-        "构图要求：白色或浅灰纯色背景，角色站姿自然，正面/侧面/背面横向排列，比例统一，无遮挡，不要出现多名不同角色。\n"
-        "细节要求：强调可复用的角色设计、服装结构、标志性道具、面部特征和配色，适合后续分镜、建模、视频生成和角色一致性参考。\n"
-        f"最终画面必须严格遵循“{resolved_style}”。"
+        f"Generate a three-view character sheet (front, side, back) for character \"{asset_name}\" from the comic drama \"{title}\".\n"
+        f"Visual style: {resolved_style}\n"
+        f"Character description: {image_prompt}\n"
+        "Requirements: Show the same character in front, side, and back views in one image. "
+        "All three views must have identical hairstyle, face, clothing, accessories, body proportions, and color scheme.\n"
+        "Composition: Plain white or light gray background, natural standing pose, views arranged horizontally, "
+        "uniform proportions, no occlusion, no multiple different characters.\n"
+        "Details: Emphasize reusable character design, clothing structure, signature props, facial features, "
+        "and color palette suitable for storyboarding, modeling, video generation, and character consistency reference.\n"
+        f"The final image must strictly follow the \"{resolved_style}\" style."
     )
 
 
@@ -349,13 +376,16 @@ def build_scene_concept_prompt(
         str: 场景概念图提示词。
     """
     return (
-        f"为漫剧《{title}》生成场景“{asset_name}”的环境概念图。\n"
-        f"用户设定的统一漫剧风格：{resolved_style}\n"
-        f"场景描述：{image_prompt}\n"
-        "画面要求：突出空间结构、时代质感、光影氛围、关键道具、可复用背景元素和镜头调度空间。\n"
-        "构图要求：单一完整场景，不要画成人物三视图，不要把角色作为主体；可以保留少量远景人物作为尺度参考，但重点必须是环境。\n"
-        "细节要求：适合后续分镜、视频生成和同场景复用，画面层次清晰，色彩和材质统一。\n"
-        f"最终画面必须严格遵循“{resolved_style}”。"
+        f"Generate an environment concept art for scene \"{asset_name}\" from the comic drama \"{title}\".\n"
+        f"Visual style: {resolved_style}\n"
+        f"Scene description: {image_prompt}\n"
+        "Requirements: Emphasize spatial structure, period texture, lighting atmosphere, key props, "
+        "reusable background elements, and camera staging space.\n"
+        "Composition: A single complete scene. Do NOT draw character sheets or make characters the focus. "
+        "You may include a few distant figures for scale reference, but the emphasis must be on the environment.\n"
+        "Details: Suitable for storyboarding, video generation, and scene reuse. "
+        "Clear visual layers, unified colors and materials.\n"
+        f"The final image must strictly follow the \"{resolved_style}\" style."
     )
 
 

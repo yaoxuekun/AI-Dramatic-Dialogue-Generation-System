@@ -5,7 +5,7 @@
 # 3. 输出模型（Output）：大模型结构化输出的约束模型，通过 with_structured_output 绑定
 
 # Pydantic：数据验证和序列化库，FastAPI 的核心依赖
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -33,10 +33,18 @@ class MainCharacterSetting(BaseModel):
     personality: str = Field(description="Personality, core desire, weakness, or character arc")
 
     # 可选的外观特征，如发型、服装、标志性道具
-    appearance: dict[str, str] | None = Field(
+    appearance: dict[str, str] | str | None = Field(
         default=None,
         description="Optional appearance traits, such as hairstyle, clothing, or signature item",
     )
+
+    @field_validator("appearance", mode="before")
+    @classmethod
+    def normalize_appearance(cls, v):
+        """将模型返回的字符串外观描述转为 dict，保持向后兼容。"""
+        if isinstance(v, str):
+            return {"description": v}
+        return v
 
 
 class VolumeOutlineItem(BaseModel):

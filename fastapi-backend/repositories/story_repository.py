@@ -40,7 +40,7 @@ def batch_insert_characters(
 ) -> None:
     """
     批量插入角色
-    characters 列表中的字典需包含：name,role_position,description,personality,appearance
+    characters 列表中的字典需包含：name,role,description,personality,appearance
     """
     if not characters:
         return
@@ -53,7 +53,7 @@ def batch_insert_characters(
         (
             story_id,
             c["name"],
-            c["role_position"],
+            c["role"],
             c["description"],
             c["personality"],
             c["appearance"],
@@ -175,7 +175,7 @@ def find_characters_by_story_id(
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, story_id, name, role AS role_position, description, personality, appearance
+        SELECT id, story_id, name, role, description, personality, appearance
         FROM characters
         WHERE story_id = %s
         ORDER BY id
@@ -283,8 +283,8 @@ def find_section_by_id_and_story_id(
     cur = conn.cursor()
     cur.execute(
         """
-        select s.id,s.story_id,s.volume_id,s.title,s.summary,s.content,s.ending_hook,
-        v.volume_number,v.title as volume_title 
+        select s.id,s.story_id,s.volume_id,s.section_number,s.title,s.summary,s.content,s.ending_hook,
+        v.volume_number,v.title as volume_title
         from story_volume_sections s
         left join story_volume_outlines v on s.volume_id=v.id
         where s.id = %s and s.story_id = %s
@@ -532,7 +532,7 @@ def save_story_outline(
                 (
                     story_id,
                     c.get("name", ""),
-                    c.get("role_position") or c.get("role", ""),
+                    c.get("role", ""),
                     c.get("description", ""),
                     c.get("personality", ""),
                     c.get("appearance", ""),

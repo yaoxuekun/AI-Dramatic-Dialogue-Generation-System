@@ -26,6 +26,9 @@ from typing import Any
 # yaml：用于解析 api.yml 中的 YAML 格式配置
 import yaml
 
+# httpx：用于配置 OpenAI 客户端的超时参数
+import httpx
+
 # ChatOpenAI：LangChain 对 OpenAI 兼容 API 的封装，支持 mimo 等国产模型
 from langchain_openai import ChatOpenAI
 
@@ -144,10 +147,11 @@ def get_image_client():
     if not api_key:
         raise RuntimeError("Image API Key is required for GPT Image 2 generation")
 
-    # 创建 OpenAI 客户端
+    # 创建 OpenAI 客户端（图片生成较慢，设置较长超时）
     return OpenAI(
         base_url=base_url,
         api_key=api_key,
+        timeout=httpx.Timeout(connect=10, read=300, write=10, pool=10),
     )
 
 

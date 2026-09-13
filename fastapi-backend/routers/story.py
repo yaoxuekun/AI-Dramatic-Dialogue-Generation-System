@@ -1,5 +1,6 @@
 # router/story.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pymysql.connections import Connection
 from math import ceil
 from repositories import story_repository, chat_session_repository, deleted_story_repository
@@ -28,6 +29,7 @@ from rabbitmq_client import publish_message
 from config import settings
 from constants import TaskType, StoryStatus, BUSY_STATUSES
 from utils.file_storage import save_upload_file, delete_file
+from utils.docx_export import export_story_docx
 
 router = APIRouter(prefix="/story")
 
@@ -69,38 +71,22 @@ def get_story_list(
             size=size,
             total=total,
             pages=ceil(total / size) if size > 0 else 0,
-        ).model_dump()
+        ).model_dump(by_alias=True)
     )
 
 
-@router.get("/{story_id}")
-def get_story_detail(
-    story_id: int,
-    current_user: dict = Depends(get_current_user),
-    conn: Connection = Depends(get_db),
-):
-    """获取漫剧详情（查询主记录 + characters + volume_outlines + sections + scripts + assets）"""
-    user_id = current_user["id"]
+def _build_story_detail_response(conn: Connection, story: dict) -> dict:
+    """组装完整漫剧详情响应（characters + volume_outlines + sections + scripts + assets）。"""
+    story_id = story["id"]
 
-    # 1.校验 story 归属
-    story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="漫剧不存在或不属于当前用户"
-        )
-
-    # 2.查询角色
     characters_raw = story_repository.find_characters_by_story_id(conn, story_id)
     characters = [CharacterResponse(**c) for c in characters_raw]
 
-    # 3.查询分卷
     volumes_raw = story_repository.find_volume_outlines_by_story_id(conn, story_id)
     volume_ids = [v["id"] for v in volumes_raw]
 
-    # 4.查询小节
     sections_by_volume = {}
     section_ids = []
-
     if volume_ids:
         sections_raw = story_repository.find_sections_by_volume_ids(conn, volume_ids)
         for s in sections_raw:
@@ -110,7 +96,6 @@ def get_story_detail(
             sections_by_volume[volume_id].append(s)
             section_ids.append(s["id"])
 
-    # 5.查询脚本（按小节分组）
     scripts_by_section = {}
     if section_ids:
         scripts_raw = story_repository.find_scripts_by_section_ids(conn, section_ids)
@@ -120,13 +105,21 @@ def get_story_detail(
                 scripts_by_section[section_id] = []
             scripts_by_section[section_id].append(sc)
 
-    # 6.组装分卷结构
+    # 查询所有资产，按 first_section_id 分组
+    assets_raw = story_repository.find_assets_by_story_id(conn, story_id)
+    assets_by_section = {}
+    for a in assets_raw:
+        sid = a.get("first_section_id")
+        if sid:
+            assets_by_section.setdefault(sid, []).append(a)
+
     volumes = []
     for v in volumes_raw:
         sections = sections_by_volume.get(v["id"], [])
         volume_sections = []
         for s in sections:
             scripts = scripts_by_section.get(s["id"], [])
+            section_assets = assets_by_section.get(s["id"], [])
             volume_sections.append(
                 VolumeSectionResponse(
                     id=s["id"],
@@ -137,6 +130,7 @@ def get_story_detail(
                     summary=s.get("summary"),
                     content=s.get("content"),
                     ending_hook=s.get("ending_hook"),
+                    assets=[AssetResponse(**a) for a in section_assets],
                     scripts=[SectionScriptResponse(**sc) for sc in scripts],
                 )
             )
@@ -154,30 +148,45 @@ def get_story_detail(
             )
         )
 
-    # 7.查询资产
-    assets_raw = story_repository.find_assets_by_story_id(conn, story_id)
     assets = [AssetResponse(**a) for a in assets_raw]
 
-    # 8.组装完整详情
+    return StoryDetailResponse(
+        id=story["id"],
+        user_id=story["user_id"],
+        title=story["title"],
+        genre=story["genre"],
+        style=story["style"],
+        synopsis=story["synopsis"],
+        full_content=story["full_content"],
+        cover_image_path=story["cover_image_path"],
+        status=story["status"],
+        view_count=story["view_count"],
+        like_count=story["like_count"],
+        created_at=story["created_at"],
+        updated_at=story["updated_at"],
+        characters=characters,
+        volume_outlines=volumes,
+        assets=assets,
+    ).model_dump(by_alias=True)
+
+
+@router.get("/{story_id}")
+def get_story_detail(
+    story_id: int,
+    current_user: dict = Depends(get_current_user),
+    conn: Connection = Depends(get_db),
+):
+    """获取漫剧详情（查询主记录 + characters + volume_outlines + sections + scripts + assets）"""
+    user_id = current_user["id"]
+
+    story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="漫剧不存在或不属于当前用户"
+        )
+
     return success_response(
-        StoryDetailResponse(
-            id=story["id"],
-            user_id=story["user_id"],
-            title=story["title"],
-            genre=story["genre"],
-            style=story["style"],
-            synopsis=story["synopsis"],
-            full_content=story["full_content"],
-            cover_image_path=story["cover_image_path"],
-            status=story["status"],
-            view_count=story["view_count"],
-            like_count=story["like_count"],
-            created_at=story["created_at"],
-            updated_at=story["updated_at"],
-            characters=characters,
-            volume_outlines=volumes,
-            assets=assets,
-        ).model_dump(),
+        _build_story_detail_response(conn, story),
         message="成功获取漫剧详情",
     )
 
@@ -276,7 +285,7 @@ def generate_story(
     story = story_repository.find_by_id(conn, story_id)
 
     return success_response(
-        data=StoryResponse(**story).model_dump(), message="任务已提交，正在生成剧情大纲"
+        data=StoryResponse(**story).model_dump(by_alias=True), message="任务已提交，正在生成剧情大纲"
     )
 
 
@@ -310,7 +319,7 @@ def revise_story_outline(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [{"name": c["name"], "role": c.get("role", "")} for c in characters],
         "suggestion": req.suggestion,
     }
 
@@ -401,7 +410,7 @@ def generate_volume_outline(
         "mainCharacters": [
             {
                 "name": c["name"],
-                "role": c.get("role_position", ""),
+                "role": c.get("role", ""),
                 "description": c.get("description", ""),
                 "personality": c.get("personality", ""),
             }
@@ -414,7 +423,10 @@ def generate_volume_outline(
         message_body=json.dumps(task_message, ensure_ascii=False),
     )
 
-    return story_repository.find_by_id(conn, story_id)
+    return success_response(
+        _build_story_detail_response(conn, story),
+        message="分卷大纲生成任务已提交",
+    )
 
 
 # ====== 4.6 分卷大纲自动修改（异步） ======
@@ -460,7 +472,7 @@ def revise_volume_outline(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [{"name": c["name"], "role": c.get("role", "")} for c in characters],
         "volumeOutlines": existing_volumes,
         "suggestion": req.suggestion,
     }
@@ -508,7 +520,7 @@ def update_volume_outlines(
 
 
 # ====== 4.8 小节故事生成（异步） ======
-@router.post("/{story_id}/volume-outline/{volumeId}/sections/generate")
+@router.post("/{story_id}/volume-outline/{volume_id}/sections/generate")
 def generate_volume_sections(
     story_id: int,
     volume_id: int,
@@ -556,8 +568,26 @@ def generate_volume_sections(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
-        "volumeOutline": volume,
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
+        "volumeOutlines": [
+            {
+                "id": volume["id"],
+                "volumeNumber": volume["volume_number"],
+                "title": volume["title"],
+                "summary": volume.get("summary"),
+                "content": volume.get("content"),
+                "endingHook": volume.get("ending_hook"),
+                "detailedContent": volume.get("detailed_content"),
+            }
+        ],
     }
 
     publish_message(
@@ -570,7 +600,7 @@ def generate_volume_sections(
 
 
 # ====== 分卷正文生成（异步） ======
-@router.post("/{story_id}/volume-outline/{volumeId}/story/generate")
+@router.post("/{story_id}/volume-outline/{volume_id}/story/generate")
 def generate_volume_story(
     story_id: int,
     volume_id: int,
@@ -608,7 +638,7 @@ def generate_volume_story(
         "storyStyle": story["style"] or "",
         "synopsis": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [{"name": c["name"], "role": c.get("role", "")} for c in characters],
     }
 
     publish_message(
@@ -620,7 +650,7 @@ def generate_volume_story(
 
 
 # ====== 4.9 小节资产图片生成（异步） ======
-@router.post("/{story_id}/volume-sections/{sessionId}/assets/generate")
+@router.post("/{story_id}/volume-sections/{section_id}/assets/generate")
 def generate_section_assets(
     story_id: int,
     section_id: int,
@@ -670,9 +700,33 @@ def generate_section_assets(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
-        "volumeOutline": volume,
-        "section": section,
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
+        "volumeOutlines": [
+            {
+                "id": volume["id"],
+                "volumeNumber": volume["volume_number"],
+                "title": volume["title"],
+                "summary": volume.get("summary"),
+                "content": volume.get("content"),
+                "endingHook": volume.get("ending_hook"),
+                "detailedContent": volume.get("detailed_content"),
+            }
+        ],
+        "section": {
+            "sectionNumber": section["section_number"],
+            "title": section["title"],
+            "summary": section.get("summary", ""),
+            "content": section.get("content", ""),
+            "endingHook": section.get("ending_hook", ""),
+        },
         "existingAssets": existing_assets,
     }
 
@@ -686,7 +740,7 @@ def generate_section_assets(
 
 
 # ====== 4.10 小节分镜脚本生成 (异步) ======
-@router.post("/{story_id}/volume-sections/{sectionId}/script/generate")
+@router.post("/{story_id}/volume-sections/{section_id}/script/generate")
 def generate_section_script(
     story_id: int,
     section_id: int,
@@ -733,9 +787,33 @@ def generate_section_script(
         "storyStyle": story["style"] or "",
         "storySummary": story["synopsis"] or "",
         "outline": story["full_content"] or "",
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
-        "volumeOutline": volume,
-        "section": section,
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
+        "volumeOutlines": [
+            {
+                "id": volume["id"],
+                "volumeNumber": volume["volume_number"],
+                "title": volume["title"],
+                "summary": volume.get("summary"),
+                "content": volume.get("content"),
+                "endingHook": volume.get("ending_hook"),
+                "detailedContent": volume.get("detailed_content"),
+            }
+        ],
+        "section": {
+            "sectionNumber": section["section_number"],
+            "title": section["title"],
+            "summary": section.get("summary", ""),
+            "content": section.get("content", ""),
+            "endingHook": section.get("ending_hook", ""),
+        },
     }
 
     # 5. 投递到 RabbitMQ
@@ -800,4 +878,28 @@ def upload_asset_audio(
 
     return success_response(
         data={"asset_id": asset_id, "audio_path": relative_path}, message="音频上传成功"
+    )
+
+
+# ====== 导出剧本为 Word 文档 ======
+@router.get("/{story_id}/export/docx")
+def export_docx(
+    story_id: int,
+    current_user: dict = Depends(get_current_user),
+    conn: Connection = Depends(get_db),
+):
+    """导出漫剧剧本为 Word (.docx) 文件。"""
+    user_id = current_user["id"]
+    story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="漫剧不存在或不属于当前用户"
+        )
+
+    buf = export_story_docx(story_id)
+    filename = f"{story.get('title') or '漫剧剧本'}.docx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

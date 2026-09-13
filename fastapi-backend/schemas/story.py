@@ -1,6 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Any
 from datetime import datetime
+
+
+def _to_camel(s: str) -> str:
+    parts = s.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
 # 请求模型
@@ -32,7 +37,7 @@ class CharacterCrateRequest(BaseModel):
     """创建/更新角色请求"""
 
     name: str = Field(..., max_length=100, description="角色名称")
-    role_position: Optional[str] = Field(
+    role: Optional[str] = Field(
         None, max_length=100, description="角色定位（主角/配角/反派等）"
     )
     description: Optional[str] = Field(None, description="角色描述")
@@ -73,10 +78,12 @@ class VolumeOutlineUpdateRequest(BaseModel):
 class CharacterResponse(BaseModel):
     """角色设定响应"""
 
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
+
     id: int
     story_id: int
     name: str
-    role_position: Optional[str] = None  # 对应表中 role 字段
+    role: Optional[str] = None
     description: Optional[str] = None
     personality: Optional[str] = None
     appearance: Optional[dict] = None  # 表中是 JSON 类型
@@ -84,6 +91,8 @@ class CharacterResponse(BaseModel):
 
 class SectionScriptResponse(BaseModel):
     """分镜脚本响应"""
+
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
 
     id: int
     story_id: int
@@ -96,8 +105,25 @@ class SectionScriptResponse(BaseModel):
     dialogue: Optional[str] = None
 
 
+class AssetResponse(BaseModel):
+    """资产响应"""
+
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
+
+    id: int
+    story_id: int
+    asset_type: str
+    name: str
+    description: Optional[str] = None
+    image_prompt: Optional[str] = None
+    image_path: Optional[str] = None
+    audio_path: Optional[str] = None
+
+
 class VolumeSectionResponse(BaseModel):
     """分卷小节响应"""
+
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
 
     id: int
     story_id: int
@@ -107,11 +133,14 @@ class VolumeSectionResponse(BaseModel):
     summary: Optional[str] = None
     content: Optional[str] = None
     ending_hook: Optional[str] = None
+    assets: List[AssetResponse] = []
     scripts: List[SectionScriptResponse] = []
 
 
 class VolumeOutlineResponse(BaseModel):
     """分卷大纲响应"""
+
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
 
     id: int
     story_id: int
@@ -124,21 +153,10 @@ class VolumeOutlineResponse(BaseModel):
     sections: List[VolumeSectionResponse] = []
 
 
-class AssetResponse(BaseModel):
-    """资产响应"""
-
-    id: int
-    story_id: int
-    asset_type: str
-    name: str
-    description: Optional[str] = None
-    image_prompt: Optional[str] = None
-    image_path: Optional[str] = None
-    audio_path: Optional[str] = None
-
-
 class StoryResponse(BaseModel):
     """漫剧简要响应（列表用）"""
+
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
 
     id: int
     user_id: int
@@ -157,13 +175,15 @@ class StoryResponse(BaseModel):
 class StoryDetailResponse(BaseModel):
     """漫剧详情响应（含所有关联数据）"""
 
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
+
     id: int
     user_id: int
     title: Optional[str] = None
     genre: Optional[str] = None
     style: Optional[str] = None
     synopsis: Optional[str] = None
-    full_content: Optional[str] = None
+    full_content: Optional[str] = Field(None, alias="full_content")
     cover_image_path: Optional[str] = None
     status: str
     view_count: int = 0

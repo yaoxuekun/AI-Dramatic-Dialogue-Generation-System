@@ -29,6 +29,7 @@
             生成封面
           </el-button>
           <el-button type="danger" plain @click="confirmDelete">删除</el-button>
+          <el-button type="info" plain @click="exportDocx">导出剧本</el-button>
         </div>
       </header>
 
@@ -442,6 +443,7 @@ import type { UploadRawFile, UploadRequestOptions } from 'element-plus';
 import { useRouter } from 'vue-router';
 import CharacterCard from '../components/story/CharacterCard.vue';
 import { useStoryStore } from '../stores/storyStore';
+import { exportStoryDocx } from '../api/storyApi';
 import type { StoryAsset, StoryCharacter, StoryVolumeOutlineUpdateItem } from '../types/story';
 
 interface EditableCharacter {
@@ -881,6 +883,22 @@ async function confirmDelete() {
   await storyStore.deleteStory(story.value.id);
   ElMessage.success('漫剧已删除');
   router.push('/stories');
+}
+
+async function exportDocx() {
+  if (!story.value) return;
+  try {
+    const blob = await exportStoryDocx(story.value.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${story.value.title || '漫剧剧本'}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success('剧本导出成功');
+  } catch {
+    ElMessage.error('导出失败');
+  }
 }
 
 function statusLabel(status?: string) {

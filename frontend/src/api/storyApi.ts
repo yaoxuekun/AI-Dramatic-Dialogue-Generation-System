@@ -95,3 +95,10 @@ export async function updateVolumeOutlines(id: number, data: StoryVolumeOutlineU
 export async function deleteStory(id: number) {
   await request.delete<ApiResponse<null>>(`/api/story/${id}`);
 }
+
+export async function exportStoryDocx(id: number): Promise<Blob> {
+  const response = await request.get(`/api/story/${id}/export/docx`, {
+    responseType: 'blob',
+  });
+  return response.data;
+}

@@ -182,7 +182,15 @@ def _story_generate_volume(conn: Connection, user_id: int, args: Dict) -> str:
         "storyStyle": story.get("style", ""),
         "synopsis": story.get("synopsis", ""),
         "outline": story.get("full_content", ""),
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
     })
     story_repository.update_story_status(conn, story_id, "generating")
     return "分卷大纲生成任务已提交"
@@ -234,7 +242,15 @@ def _story_generate_sections(conn: Connection, user_id: int, args: Dict) -> str:
         "storyStyle": story.get("style", ""),
         "synopsis": story.get("synopsis", ""),
         "outline": story.get("full_content", ""),
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
         "volumeOutline": volume,
     })
     story_repository.update_story_status(conn, story_id, "generating")
@@ -296,7 +312,15 @@ def _story_generate_script(conn: Connection, user_id: int, args: Dict) -> str:
         "storyStyle": story.get("style", ""),
         "synopsis": story.get("synopsis", ""),
         "outline": story.get("full_content", ""),
-        "mainCharacters": [{"name": c["name"], "role_position": c.get("role_position", "")} for c in characters],
+        "mainCharacters": [
+            {
+                "name": c["name"],
+                "role": c.get("role", ""),
+                "description": c.get("description", ""),
+                "personality": c.get("personality", ""),
+            }
+            for c in characters
+        ],
     })
     story_repository.update_story_status(conn, story_id, "generating")
     return "分镜脚本生成任务已提交"

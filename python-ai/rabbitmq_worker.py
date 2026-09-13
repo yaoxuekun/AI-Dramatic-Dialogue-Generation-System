@@ -325,9 +325,9 @@ def _handle_story_task(
                 ),
                 on_volume_generated=publish_volume,  # 注册逐卷回调
             )
-            # 全部生成完成，标记 completed
+            # 全部生成完成，标记 completed，保留完整分卷数据
             result["completed"] = True
-            result["volumeOutline"] = None  # 最终消息不重复发送全部分卷
+            result["volumeOutline"] = response.model_dump(by_alias=True)
 
         # ── 分卷大纲修改 ──────────────────────────────────────
         elif task_type == TASK_VOLUME_REVISE:
