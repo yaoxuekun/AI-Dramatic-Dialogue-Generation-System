@@ -80,7 +80,7 @@ mimo_api_key = str(api_config.get("mimo", {}).get("api_key", "")).strip()
 
 # API 地址
 MIMO_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1"
-MIMO_MODEL = "mimo-v2.5"
+MIMO_MODEL = "mimo-v2.5-pro"
 
 
 # ── LLM 实例定义 ──────────────────────────────────────────────────────

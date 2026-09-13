@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 from pymysql.connections import Connection
 import database
-from repositories import story_repository, outline_option_repository, prompt_repository
+from repositories import story_repository, outline_option_repository, prompt_repository, deleted_story_repository
 
 logger = logging.getLogger(__name__)
 
@@ -309,6 +309,8 @@ def _story_delete(conn: Connection, user_id: int, args: Dict) -> str:
     story = story_repository.find_by_id_and_user_id(conn, story_id, user_id)
     if not story:
         return "漫剧不存在或无权删除"
+    # 标记已删除，防止 RabbitMQ 消费端继续处理该漫剧的消息
+    deleted_story_repository.mark_deleted(story_id)
     story_repository.delete_story_by_id(conn, story_id)
     return "漫剧已删除"
 

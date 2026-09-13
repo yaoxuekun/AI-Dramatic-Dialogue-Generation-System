@@ -15,7 +15,7 @@ import pika
 from config import settings
 from constants import StoryStatus
 import database
-from repositories import story_repository
+from repositories import story_repository, deleted_story_repository
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +142,11 @@ def _dispatch(msg: Dict[str, Any]) -> None:
 
     if not story_id:
         logger.warning("[result-consumer] 消息缺少 storyId，跳过")
+        return
+
+    # 检查漫剧是否已被删除，已删除则跳过处理
+    if deleted_story_repository.is_deleted(story_id):
+        logger.info(f"[result-consumer] storyId={story_id} 已删除，跳过处理")
         return
 
     # ── 失败消息 ────────────────────────────────────

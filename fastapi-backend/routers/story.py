@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from pymysql.connections import Connection
 from math import ceil
-from repositories import story_repository, chat_session_repository
+from repositories import story_repository, chat_session_repository, deleted_story_repository
 from schemas.story import (
     StoryUpdateRequest,
     StoryResponse,
@@ -218,6 +218,8 @@ def delete_story(
             status_code=status.HTTP_404_NOT_FOUND, detail="漫剧不存在或不属于当前用户"
         )
 
+    # 标记已删除，防止 RabbitMQ 消费端继续处理该漫剧的消息
+    deleted_story_repository.mark_deleted(story_id)
     story_repository.delete_story_by_id(conn, story_id)
     return success_response(data=None, message="删除成功")
 
