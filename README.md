@@ -56,9 +56,9 @@
 ### 前置要求
 - **Node.js 18+** (`node -v`)
 - **Python 3.11+** (`python --version`)
-- **MySQL 8.0** (已安装并运行)
-- **Redis 7** (已安装并运行)
-- **RabbitMQ 3.12+** (已安装并运行)
+- **MySQL 8.0** 
+- **Redis 7** 
+- **RabbitMQ 3.12+** 
 
 ### 环境配置
 
