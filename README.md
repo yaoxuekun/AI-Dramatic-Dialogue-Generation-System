@@ -25,7 +25,7 @@
 |------|----------|
 | **前端** | Vue 3 + TypeScript + Pinia + Vue Router + Axios + Element Plus |
 | **后端** | Python + FastAPI + PyMySQL + Redis + RabbitMQ |
-| **AI引擎** | Python + LangChain + FastAPI + Pydantic + mimo-v2.5 (qwen-max) |
+| **AI引擎** | Python + LangChain + FastAPI + Pydantic + mimo-v2.5 |
 | **图片生成** | GPT Image 2 |
 | **数据库** | MySQL 8.0 + Redis 7 |
 | **消息队列** | RabbitMQ 3.12+ |
