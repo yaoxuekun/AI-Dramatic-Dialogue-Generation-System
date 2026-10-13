@@ -18,7 +18,7 @@ import rabbitmq_client
 import json
 import logging
 from utils.jwt_util import generate_token, validate_token, get_user_id_from_token
-from routers import auth, user, story, chat, file, outline_option, feature_permission, prompt
+from routers import auth, user, story, chat, file, outline_option, feature_permission, prompt, internal
 from services.result_consumer import start_result_consumer
 from services.chat_persist_consumer import start_chat_persist_consumer
 import sys
@@ -114,6 +114,8 @@ app.include_router(file.router, prefix="/api", tags=["文件存储"])
 app.include_router(outline_option.router, prefix="/api", tags=["大纲配置"])
 app.include_router(feature_permission.router, prefix="/api", tags=["功能权限"])
 app.include_router(prompt.router, prefix="/api", tags=["Prompt管理"])
+# 内部只读接口：服务间调用（AI 引擎），自带 /internal 前缀，不与用户 /api 前缀混用
+app.include_router(internal.router, tags=["internal"])
 
 
 @app.exception_handler(StarletteHTTPException)

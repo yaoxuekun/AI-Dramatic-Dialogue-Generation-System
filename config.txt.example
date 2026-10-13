@@ -17,3 +17,7 @@ redis:
         max-wait: 2000ms
         min-idle: 2
         max-idle: 8
+
+backend_internal:
+  url: http://localhost:8085
+  token: your_internal_ai_token

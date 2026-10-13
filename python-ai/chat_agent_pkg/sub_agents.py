@@ -83,7 +83,7 @@ def run_sub_agent(
 
     # ── ReAct Agent 执行 ──────────────────────────────────────────────
     # 获取该模块的工具列表
-    tools = get_tools_for_module(route.module)
+    tools = get_tools_for_module(route.module, user_id=request.user_id)
 
     # 获取子 Agent 提示词模板
     prompt = get_prompt_template(

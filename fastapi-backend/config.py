@@ -63,6 +63,9 @@ class Settings:
     # Python AI 引擎
     AI_ENGINE_BASE_URL = os.getenv("ai_engine_base_url")
 
+    # AI 引擎服务间内部调用 token（内部只读接口鉴权用，与用户 JWT 完全隔离）
+    INTERNAL_AI_TOKEN: str = os.getenv("internal_ai_token", "")
+
     # 文件存储
     STORAGE_ROOT_PATH = os.getenv("storage_root_path", "./storage")
 

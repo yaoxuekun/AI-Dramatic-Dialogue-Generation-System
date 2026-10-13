@@ -12,6 +12,21 @@
 # json：用于 JSON 序列化和反序列化
 import json
 
+# os：用于读取环境变量中的内部接口配置
+import os
+
+# pathlib.Path：用于定位仓库根目录的 config.txt 配置文件
+from pathlib import Path
+
+# httpx：用于真查询工具调用后端内部只读接口
+import httpx
+
+# yaml：用于解析仓库根目录 config.txt（YAML 格式）
+import yaml
+
+# inspect.signature：用于判断工具工厂是否接受 user_id 参数
+from inspect import signature
+
 # collections.able.Callable：用于声明工厂函数类型
 from collections.abc import Callable
 
@@ -224,6 +239,125 @@ def is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip()) or (isinstance(value, list) and not value)
 
 
+# ── 真查询工具（内部只读接口直连）────────────────────────────────────
+
+def _internal_api_base() -> str:
+    """获取后端内部接口地址。
+
+    优先级：环境变量 BACKEND_INTERNAL_URL > config.txt 的 backend_internal.url > 默认值。
+    """
+    base = os.getenv("BACKEND_INTERNAL_URL", "")
+    if base:
+        return base.rstrip("/")
+
+    # 尝试读取仓库根目录的 config.txt（与 rabbitmq_worker 的读取方式一致）
+    config_path = Path(__file__).resolve().parents[1] / "config.txt"
+    if config_path.exists():
+        try:
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            url = (raw.get("backend_internal") or {}).get("url")
+            if url:
+                return str(url).rstrip("/")
+        except Exception:
+            pass  # 配置解析失败时回退默认值
+
+    return "http://localhost:8085"
+
+
+def _internal_api_token() -> str:
+    """获取内部调用 token。
+
+    优先级：环境变量 INTERNAL_AI_TOKEN > config.txt 的 backend_internal.token > 空字符串。
+    """
+    token = os.getenv("INTERNAL_AI_TOKEN", "")
+    if token:
+        return token
+
+    config_path = Path(__file__).resolve().parents[1] / "config.txt"
+    if config_path.exists():
+        try:
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            value = (raw.get("backend_internal") or {}).get("token")
+            if value:
+                return str(value)
+        except Exception:
+            pass  # 配置解析失败时返回空
+
+    return ""
+
+
+def make_query_tool(
+        name: str,
+        description: str,
+        endpoint: str,
+        user_id: int | None = None,
+        extra_params: dict[str, Any] | None = None,
+) -> Tool:
+    """创建真查询 Tool 工厂函数。
+
+    与 make_action_tool（提案制）不同：本类工具直接 HTTP 调用后端内部只读接口，
+    把真实数据作为 Observation 返回给 LLM，使 ReAct 可以同轮多步推理。
+    userId 在工厂闭包中由系统绑定注入，LLM 无法伪造。
+
+    Args:
+        name:         工具名称。
+        description:  工具描述，Agent 根据描述选择工具。
+        endpoint:     内部接口路径，如 "/internal/stories/search"；
+                      若以 "/" 结尾，则 run 时把解析出的 storyId 拼接到路径尾部。
+        user_id:      系统注入的用户 ID（闭包绑定）。
+        extra_params: 附加的固定 query 参数。
+
+    Returns:
+        Tool: LangChain Tool 实例。
+    """
+    fixed_params = extra_params or {}
+
+    def run(raw_input: str) -> str:
+        """Tool 执行函数：调用后端内部只读接口并返回 JSON。
+
+        Args:
+            raw_input: JSON 格式的输入参数。
+
+        Returns:
+            str: JSON 格式的真实数据或错误信息。
+        """
+        # userId 未注入时直接报错，避免无归属查询
+        if user_id is None:
+            return to_json({"error": "user context missing"})
+
+        # 解析 LLM 参数
+        data = parse_tool_input(raw_input)
+
+        # 路径拼接：endpoint 以 / 结尾且参数含 storyId → 拼到路径尾部
+        actual_endpoint = endpoint
+        query_llm_params = dict(data)
+        if endpoint.endswith("/"):
+            story_id = data.get("storyId") or data.get("id")
+            if story_id is not None:
+                actual_endpoint = f"{endpoint}{story_id}"
+                query_llm_params = {
+                    k: v for k, v in data.items() if k not in ("storyId", "id")
+                }
+
+        try:
+            resp = httpx.get(
+                f"{_internal_api_base()}{actual_endpoint}",
+                params={"user_id": user_id, **fixed_params, **query_llm_params},
+                headers={"X-Internal-Token": _internal_api_token()},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            return to_json(resp.json())
+        except Exception as exc:  # 让 LLM 看到失败原因，而不是抛异常打断 Agent
+            return to_json({"error": str(exc)})
+
+    return Tool.from_function(
+        name=name,
+        description=description,
+        func=run,
+    )
+
+
 # ── 系统工具 ──────────────────────────────────────────────────────────
 
 def system_tools() -> list[Tool]:
@@ -252,15 +386,31 @@ def system_tools() -> list[Tool]:
 
 # ── 漫剧工具 ──────────────────────────────────────────────────────────
 
-def manga_tools() -> list[Tool]:
+def manga_tools(user_id: int | None = None) -> list[Tool]:
     """获取漫剧模块工具列表。
 
-    包含漫剧的增删改查、大纲生成/修改、分卷/小节/资产/脚本生成等操作。
+    包含真查询工具（直连内部只读接口）和提案类工具（增删改、大纲生成等）。
+
+    Args:
+        user_id: 系统注入的用户 ID，绑定到真查询工具闭包。
 
     Returns:
         list[Tool]: 漫剧工具列表。
     """
     return system_tools() + [
+        # 真查询工具：读操作直接调后端内部只读接口，返回真实数据
+        make_query_tool(
+            "story_list_search",
+            "实时查询当前用户的漫剧列表，返回真实数据（含 id、标题、题材、状态）。需要先看到列表再决定下一步时使用。输入 JSON 可为空。",
+            "/internal/stories/search",
+            user_id=user_id,
+        ),
+        make_query_tool(
+            "story_detail_search",
+            "实时查询指定漫剧的详情（含摘要与大纲内容）。storyId 必填。",
+            "/internal/stories/",   # 实际调用时拼接 f"{storyId}"
+            user_id=user_id,
+        ),
         make_action_tool(
             "story_list",
             "查询当前用户的漫剧列表。输入 JSON：page 可选，size 可选。",
@@ -556,13 +706,15 @@ MODULE_TOOL_FACTORY: dict[str, Callable[[], list[Tool]]] = {
 }
 
 
-def get_tools_for_module(module: str) -> list[Tool]:
+def get_tools_for_module(module: str, user_id: int | None = None) -> list[Tool]:
     """获取指定模块的工具列表。
 
     如果模块名不在映射表中，返回系统工具列表。
+    工厂函数若声明了 user_id 参数，则传入系统注入的用户 ID（供真查询工具绑定）。
 
     Args:
-        module: 模块名。
+         module: 模块名。
+        user_id: 系统注入的用户 ID，可为 None（此时真查询工具返回错误 JSON）。
 
     Returns:
         list[Tool]: 该模块的工具列表。
@@ -573,6 +725,10 @@ def get_tools_for_module(module: str) -> list[Tool]:
     # 如果找不到，返回系统工具
     if factory is None:
         return system_tools()
+
+    # 只给声明了 user_id 参数的工厂传参（其他 4 个工厂签名无需改动）
+    if "user_id" in signature(factory).parameters:
+        return factory(user_id=user_id)
 
     # 调用工厂函数生成工具列表
     return factory()
