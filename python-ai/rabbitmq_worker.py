@@ -393,7 +393,9 @@ def _handle_story_task(
                 progress_result["volumeSection"] = {"sections": [section.model_dump(by_alias=True)]}
                 publish_progress(progress_result)
 
-            generate_volume_sections(
+            # 逐节回调已把每一节随 partial 发出；completed 消息再带一次全量，
+            # 让消费端能做差量对齐（删掉本次结果之外的多余小节）
+            section_response = generate_volume_sections(
                 StoryVolumeSectionGenerateRequest(
                     userId=task.get("userId"),
                     storyId=task.get("storyId"),
@@ -411,6 +413,7 @@ def _handle_story_task(
             )
             result["volumeId"] = task.get("volumeId")
             result["volumeNumber"] = volume_outline.get("volumeNumber")
+            result["volumeSection"] = section_response.model_dump(by_alias=True)
             result["completed"] = True
 
         # ── 小节资产图片生成 ──────────────────────────────────

@@ -166,19 +166,23 @@ def _dispatch(msg: Dict[str, Any]) -> None:
 
     # ── VOLUME_OUTLINE_GENERATE / VOLUME_OUTLINE_REVISE ──
     elif task_type in ("VOLUME_OUTLINE_GENERATE", "VOLUME_OUTLINE_REVISE"):
-        if completed:
-            # 完成时先清空旧分卷，再插入新分卷
-            with database.get_db_cursor() as conn:
-                story_repository.delete_volume_outlines_by_story_id(conn, story_id)
-        _save_volume_outlines(story_id, msg.get("volumeOutline"))
+        # GENERATE：partial 逐卷 upsert，completed 全量 upsert 后删掉本次没有的卷号
+        # REVISE：只 upsert 修改的分卷，不做任何删除（返回可能只含被改动的卷）
+        reconcile = completed and task_type == "VOLUME_OUTLINE_GENERATE"
+        _save_volume_outlines(
+            story_id, msg.get("volumeOutline"), reconcile=reconcile
+        )
         if completed:
             _update_status(story_id, _NEXT_STATUS.get(task_type, StoryStatus.DRAFT))
 
     # ── VOLUME_SECTION_GENERATE ──
     elif task_type == "VOLUME_SECTION_GENERATE":
         volume_id = msg.get("volumeId")
-        if volume_id and msg.get("volumeSection"):
-            _save_volume_section(story_id, volume_id, msg["volumeSection"])
+        if volume_id:
+            # partial：逐节 upsert；completed：全量 upsert 后删掉本次没有的节号
+            _save_volume_section(
+                story_id, volume_id, msg.get("volumeSection"), reconcile=completed
+            )
         if completed:
             _update_status(story_id, _NEXT_STATUS.get(task_type, StoryStatus.DRAFT))
 
@@ -225,31 +229,108 @@ def _save_story_outline(story_id: int, outline: Optional[Dict[str, Any]]) -> Non
     logger.info(f"[result-consumer] 剧情大纲已保存, storyId={story_id}")
 
 
-def _save_volume_outlines(story_id: int, volume_outline: Optional[Dict[str, Any]]) -> None:
-    """保存分卷大纲结果（支持逐卷 partial）。"""
+def _save_volume_outlines(
+    story_id: int,
+    volume_outline: Optional[Dict[str, Any]],
+    reconcile: bool = False,
+    only_changed: bool = False,
+) -> None:
+    """保存分卷大纲结果（支持逐卷 partial）。
+
+    reconcile=True 时（completed 的全量结果）在 upsert 之后，
+    把本次结果中不存在的卷号从库里删掉；同号卷走 upsert，分卷 id 保持不变，
+    已生成的小节、资产、分镜脚本不会因为重新生成大纲而丢失。
+
+    only_changed=True 时（用于 VOLUME_OUTLINE_REVISE）只写与库里现有值不同的卷：
+    模型把没改动的卷复述一遍（哪怕措辞、标点变了）也不会落库，
+    从代码层兜住「说改一卷、实际整套被重写」的问题。
+    """
     if not volume_outline:
         return
     volumes = volume_outline.get("volumes", [])
     if not volumes:
+        # 没有卷数据时不做任何清理，避免异常消息把已有分卷删光
         return
     with database.get_db_cursor() as conn:
+        existing: Dict[int, Dict[str, Any]] = {}
+        if only_changed:
+            existing = _fetch_volume_outline_snapshot(conn, story_id)
+
+        written = 0
+        skipped = 0
         for v in volumes:
+            volume_number = v.get("volumeNumber", 0)
+            fields = {
+                "title": v.get("title", ""),
+                "summary": v.get("summary"),
+                "content": v.get("content"),
+                "ending_hook": v.get("endingHook"),
+            }
+            if only_changed and _volume_unchanged(existing.get(volume_number), fields):
+                skipped += 1
+                continue
             story_repository.upsert_volume_outline(
                 conn,
                 story_id=story_id,
-                volume_number=v.get("volumeNumber", 0),
-                title=v.get("title", ""),
-                summary=v.get("summary"),
-                content=v.get("content"),
-                ending_hook=v.get("endingHook"),
+                volume_number=volume_number,
+                **fields,
             )
-    logger.info(f"[result-consumer] 分卷大纲已保存 {len(volumes)} 卷, storyId={story_id}")
+            written += 1
+
+        if reconcile:
+            removed = story_repository.delete_volume_outlines_not_in(
+                conn, story_id, {v.get("volumeNumber", 0) for v in volumes}
+            )
+            if removed:
+                logger.info(
+                    f"[result-consumer] 已清理多余分卷 id={removed}, storyId={story_id}"
+                )
+    if only_changed:
+        logger.info(
+            f"[result-consumer] 分卷大纲已保存 写入 {written} 卷 / 跳过 {skipped} 卷未改动, "
+            f"storyId={story_id}"
+        )
+    else:
+        logger.info(f"[result-consumer] 分卷大纲已保存 {len(volumes)} 卷, storyId={story_id}")
 
 
-def _save_volume_section(story_id: int, volume_id: int, section_data: Dict[str, Any]) -> None:
-    """保存小节结果（支持逐节 partial）。"""
-    sections = section_data.get("sections", [])
+def _fetch_volume_outline_snapshot(conn: Any, story_id: int) -> Dict[int, Dict[str, Any]]:
+    """读取库里现有分卷大纲，按卷号建索引，供差异比对。"""
+    rows = story_repository.find_volume_outlines_by_story_id(conn, story_id) or []
+    return {row["volume_number"]: row for row in rows}
+
+
+def _volume_unchanged(
+    existing: Optional[Dict[str, Any]], fields: Dict[str, Any]
+) -> bool:
+    """比对某一卷是否与库里现有值完全一致（不做任何规范化）。"""
+    if not existing:
+        return False
+    new_title = fields.get("title") or ""
+    old_title = existing.get("title") or ""
+    if new_title != old_title:
+        return False
+    for key in ("summary", "content", "ending_hook"):
+        if (fields.get(key) or "") != (existing.get(key) or ""):
+            return False
+    return True
+
+
+def _save_volume_section(
+    story_id: int,
+    volume_id: int,
+    section_data: Optional[Dict[str, Any]],
+    reconcile: bool = False,
+) -> None:
+    """保存小节结果（支持逐节 partial）。
+
+    reconcile=True 时（completed 的全量结果）在 upsert 之后，
+    把本卷下、本次结果里不存在的节号删掉；同号节走 upsert，小节 id 保持不变，
+    已生成的资产与分镜脚本不会因为重新生成小节而丢失。
+    """
+    sections = (section_data or {}).get("sections", [])
     if not sections:
+        # 没有小节数据时不做任何清理，避免异常消息把已有小节删光
         return
     with database.get_db_cursor() as conn:
         for s in sections:
@@ -263,6 +344,15 @@ def _save_volume_section(story_id: int, volume_id: int, section_data: Dict[str, 
                 content=s.get("content"),
                 ending_hook=s.get("endingHook"),
             )
+        if reconcile:
+            removed = story_repository.delete_sections_not_in(
+                conn, volume_id, {s.get("sectionNumber", 0) for s in sections}
+            )
+            if removed:
+                logger.info(
+                    f"[result-consumer] 已清理多余小节 id={removed}, "
+                    f"volumeId={volume_id}, storyId={story_id}"
+                )
     logger.info(f"[result-consumer] 小节已保存 {len(sections)} 节, storyId={story_id}")
 
 

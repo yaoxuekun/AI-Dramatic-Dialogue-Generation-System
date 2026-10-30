@@ -7,6 +7,7 @@
 这是一个全栈的AI漫剧生成系统，用户可以通过自然对话的形式与AI创作助手交互，逐步完善漫剧设定，最终生成包含角色、剧情、分镜、对白等完整内容的漫画剧本。
 
 **核心特性：**
+
 - **智能对话交互**：多阶段 AI Agent 流水线（指代消解→意图路由→记忆管理→子Agent执行），自动理解用户意图并路由到对应操作
 - **渐进式生成**：多轮对话逐步细化角色、剧情、风格设定
 - **完整漫剧内容**：自动生成剧情大纲、分卷大纲、小节故事、分镜脚本
@@ -21,14 +22,14 @@
 
 ### 技术栈
 
-| 层级 | 技术选型 |
-|------|----------|
-| **前端** | Vue 3 + TypeScript + Pinia + Vue Router + Axios + Element Plus |
-| **后端** | Python + FastAPI + PyMySQL + Redis + RabbitMQ |
-| **AI引擎** | Python + LangChain + FastAPI + Pydantic + mimo-v2.5 |
-| **图片生成** | GPT Image 2 |
-| **数据库** | MySQL 8.0 + Redis 7 |
-| **消息队列** | RabbitMQ 3.12+ |
+| 层级       | 技术选型                                                           |
+| -------- | -------------------------------------------------------------- |
+| **前端**   | Vue 3 + TypeScript + Pinia + Vue Router + Axios + Element Plus |
+| **后端**   | Python + FastAPI + PyMySQL + Redis + RabbitMQ                  |
+| **AI引擎** | Python + LangChain + FastAPI + Pydantic + mimo-v2.5            |
+| **图片生成** | GPT Image 2                                                    |
+| **数据库**  | MySQL 8.0 + Redis 7                                            |
+| **消息队列** | RabbitMQ 3.12+                                                 |
 
 ### 架构图
 
@@ -47,6 +48,7 @@
 ```
 
 **调用链路：**
+
 - **对话消息**：前端 → FastAPI 后端 → Python Agent (HTTP) → 指代消解 → 意图路由 → 记忆更新 → 子 Agent → 后端执行
 - **故事生成**：前端 → FastAPI 后端 → RabbitMQ → Python Worker → RabbitMQ → 后端监听落库 → 前端轮询
 - **消息持久化**：前端 → FastAPI 后端 → Redis 短期记忆 → RabbitMQ → MySQL 持久化
@@ -54,33 +56,38 @@
 ## 快速开始
 
 ### 前置要求
+
 - **Node.js 18+** (`node -v`)
 - **Python 3.11+** (`python --version`)
-- **MySQL 8.0** 
-- **Redis 7** 
-- **RabbitMQ 3.12+** 
+- **MySQL 8.0**
+- **Redis 7**
+- **RabbitMQ 3.12+**
 
 ### 环境配置
 
 1. **克隆项目**
+
 ```bash
 git clone https://github.com/yaoxuekun/AI-Dramatic-Dialogue-Generation-System.git
 cd AI-Dramatic-Dialogue-Generation-System
 ```
 
-2. **数据库初始化**
+1. **数据库初始化**
+
 ```bash
 mysql -u root -p < fastapi-backend/db/init.sql
 ```
 
-3. **配置后端环境变量**
+1. **配置后端环境变量**
+
 ```bash
 cd fastapi-backend
 cp .env.example .env
 # 编辑 .env，填入你的数据库、Redis、RabbitMQ 连接信息
 ```
 
-4. **配置 Python AI 引擎**
+1. **配置 Python AI 引擎**
+
 ```bash
 cd python-ai
 cp api.yml.example api.yml
@@ -90,6 +97,7 @@ cp api.yml.example api.yml
 ### 启动服务
 
 **窗口1：启动 FastAPI 后端**
+
 ```bash
 cd fastapi-backend
 pip install -r requirements.txt
@@ -97,6 +105,7 @@ python main.py
 ```
 
 **窗口2：启动 Python AI 引擎**
+
 ```bash
 cd python-ai
 pip install -r requirements.txt
@@ -104,6 +113,7 @@ python main.py
 ```
 
 **窗口3：启动 Vue 前端**
+
 ```bash
 cd frontend
 npm install
@@ -111,9 +121,10 @@ npm run dev
 ```
 
 ### 访问应用
-- **前端界面**: http://localhost:8080
-- **后端API文档**: http://localhost:8085/docs
-- **RabbitMQ管理界面**: http://localhost:15672 (guest/guest)
+
+- **前端界面**: <http://localhost:8080>
+- **后端API文档**: <http://localhost:8085/docs>
+- **RabbitMQ管理界面**: <http://localhost:15672> (guest/guest)
 
 ## 项目结构
 
@@ -183,11 +194,13 @@ AI-Dramatic-Dialogue-Generation-System/
 ## 核心功能
 
 ### 1. 用户认证与权限
+
 - JWT 无状态认证，token 有效期 24 小时
 - 注册、登录、用户资料管理、头像上传
 - 三级角色权限：ROOT（超级管理员）、ADMIN（管理员）、USER（普通用户）
 
 ### 2. 智能对话系统
+
 - **多阶段 AI Agent 流水线**：
   1. **指代消解**：将"它"、"这个"等指代词替换为具体实体
   2. **意图路由**：判断用户意图，提取关键信息，路由到对应模块
@@ -196,6 +209,7 @@ AI-Dramatic-Dialogue-Generation-System/
 - 对话白名单分发：AI 返回的方法名经后端白名单校验后执行
 
 ### 3. 漫剧生成（5个阶段）
+
 1. **剧情大纲**：用户输入题材和风格，AI 生成完整大纲和角色设定
 2. **分卷大纲**：两阶段生成，逐卷增量回传
 3. **小节故事**：逐节生成具体故事细节
@@ -203,10 +217,12 @@ AI-Dramatic-Dialogue-Generation-System/
 5. **分镜脚本**：生成镜头级分镜脚本
 
 ### 4. 提示词动态管理
+
 - 数据库存储提示词模板，支持在线编辑
 - 按题材/风格匹配特定提示词，优先级：特定 > 默认 > 代码兜底
 
 ### 5. 异步任务架构
+
 - RabbitMQ 驱动所有非对话 AI 任务
 - 支持 partial/completed 消息，实现增量结果回传
 - LLM 调用自动重试 + 结构化 JSON 输出自动修复
@@ -214,6 +230,7 @@ AI-Dramatic-Dialogue-Generation-System/
 ## 数据库设计
 
 ### 核心表
+
 - **users**: 用户账户信息
 - **chat_sessions**: 聊天会话
 - **messages**: 会话消息
@@ -227,6 +244,7 @@ AI-Dramatic-Dialogue-Generation-System/
 - **feature_permissions**: 功能权限配置
 
 ### 故事状态流转
+
 ```
 draft → generating → volume_pending → volume_section_pending
 → section_asset_pending → section_script_pending → draft
@@ -235,16 +253,19 @@ draft → generating → volume_pending → volume_section_pending
 ## API 接口
 
 ### 认证
+
 - `POST /api/auth/register` - 注册
 - `POST /api/auth/login` - 登录
 
 ### 聊天
+
 - `POST /api/chat/start` - 创建对话
 - `POST /api/chat/message` - 发送消息
 - `GET /api/chat/history/{sessionId}` - 历史消息
 - `GET /api/chat/sessions` - 会话列表
 
 ### 漫剧
+
 - `POST /api/story/generate` - 生成剧情大纲
 - `POST /api/story/{id}/outline/revise` - 修改大纲
 - `POST /api/story/{id}/volume-outline/generate` - 生成分卷
@@ -253,6 +274,7 @@ draft → generating → volume_pending → volume_section_pending
 - `POST /api/story/{id}/volume-sections/{sid}/script/generate` - 生成脚本
 
 ### 管理
+
 - `GET/POST/PUT/DELETE /api/prompts` - Prompt 管理
 - `GET/POST/PUT/DELETE /api/story-outline-options` - 大纲配置
 - `GET/PUT /api/feature-permissions` - 功能权限
@@ -262,15 +284,12 @@ draft → generating → volume_pending → volume_section_pending
 1. **后端启动失败**
    - 检查 `.env` 配置是否正确
    - 确认 MySQL、Redis、RabbitMQ 已启动
-
 2. **AI 引擎报错**
    - 检查 `python-ai/api.yml` 中的 API Key
    - 确认 RabbitMQ 连接正常
-
 3. **故事状态变为 failed**
    - 查看 Python 控制台日志
    - 确认mimo-v2.5 API Key 有效
-
 4. **图片无法显示**
    - 确认图片生成 API Key 有效
    - 确认 `storage/` 目录有写入权限

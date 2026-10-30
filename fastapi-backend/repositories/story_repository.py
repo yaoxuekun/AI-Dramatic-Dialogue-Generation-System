@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Sequence
 from datetime import datetime
 from pymysql.connections import Connection
 
@@ -488,6 +488,98 @@ def delete_sections_by_volume_id(conn: Connection, volume_id: int) -> None:
         (volume_id,),
     )
     conn.commit()
+
+
+def delete_volume_outlines_not_in(
+    conn: Connection, story_id: int, keep_numbers: Sequence[int]
+) -> List[int]:
+    """
+    删除本次生成结果之外的分卷大纲（按 volume_number 差量对齐）。
+
+    与 delete_volume_outlines_by_story_id 的区别：
+      - 那条是「全删」，会因 ON DELETE CASCADE 连带删掉所有小节、资产、分镜脚本，
+        且重新插入后分卷 id 全变，小节的外键全部失配；
+      - 这条只删「本次结果里没有的卷号」，同号卷走 upsert，id 保持不变，
+        已有小节自然跟着原分卷存活。
+
+    删除前显式清理子表，不依赖数据库 CASCADE 语义是否开启。
+
+    返回被删除的分卷 id 列表（便于日志与排障）。
+    """
+    keep = [int(n) for n in keep_numbers if n is not None]
+    if not keep:
+        # 没有可保留的卷号，语义不明确，保守起见不动数据
+        return []
+
+    cur = conn.cursor()
+    placeholders = ",".join(["%s"] * len(keep))
+    cur.execute(
+        f"select id from story_volume_outlines "
+        f"where story_id = %s and volume_number not in ({placeholders})",
+        (story_id, *keep),
+    )
+    stale_ids = [row["id"] for row in cur.fetchall() or []]
+    if not stale_ids:
+        return []
+
+    for volume_id in stale_ids:
+        cur.execute(
+            "delete from story_volume_sections where volume_id = %s",
+            (volume_id,),
+        )
+        cur.execute(
+            "delete from story_volume_outlines where id = %s",
+            (volume_id,),
+        )
+    conn.commit()
+    return stale_ids
+
+
+# 小节被删除时需要一并清理的子表（均以 section_id 外键指向 story_volume_sections）
+_SECTION_CHILD_TABLES = ("story_section_scripts", "story_section_assets")
+
+
+def delete_sections_not_in(
+    conn: Connection, volume_id: int, keep_numbers: Sequence[int]
+) -> List[int]:
+    """
+    删除指定分卷下、本次生成结果之外的节（按 section_number 差量对齐）。
+
+    与 delete_sections_by_volume_id（整卷全删）的区别：只删本次结果里没有的节号，
+    同号节走 upsert，小节 id 保持不变，已生成的资产与分镜脚本继续挂着。
+
+    删除前显式清理资产关联与分镜脚本，不依赖数据库 CASCADE 语义是否开启。
+
+    返回被删除的小节 id 列表（便于日志与排障）。
+    """
+    keep = [int(n) for n in keep_numbers if n is not None]
+    if not keep:
+        # 没有可保留的节号，语义不明确，保守起见不动数据
+        return []
+
+    cur = conn.cursor()
+    placeholders = ",".join(["%s"] * len(keep))
+    cur.execute(
+        f"select id from story_volume_sections "
+        f"where volume_id = %s and section_number not in ({placeholders})",
+        (volume_id, *keep),
+    )
+    stale_ids = [row["id"] for row in cur.fetchall() or []]
+    if not stale_ids:
+        return []
+
+    id_placeholders = ",".join(["%s"] * len(stale_ids))
+    for table in _SECTION_CHILD_TABLES:
+        cur.execute(
+            f"delete from {table} where section_id in ({id_placeholders})",
+            tuple(stale_ids),
+        )
+    cur.execute(
+        f"delete from story_volume_sections where id in ({id_placeholders})",
+        tuple(stale_ids),
+    )
+    conn.commit()
+    return stale_ids
 
 
 # ── 结果落库专用函数（RabbitMQ 消费者调用）─────────────────────────

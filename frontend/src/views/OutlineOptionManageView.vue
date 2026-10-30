@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">Outline Settings</p>
         <h1>大纲配置</h1>
-        <span>管理生成漫剧大纲时可选择的题材和漫剧风格，这部分只走 Java 后端业务接口。</span>
+        <span>管理生成漫剧大纲时可选择的题材和漫剧风格，这部分只走后端业务接口。</span>
       </div>
       <el-button type="primary" size="large" @click="openCreateDialog">
         新增{{ activeTypeLabel }}
