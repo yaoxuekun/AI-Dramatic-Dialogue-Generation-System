@@ -18,9 +18,17 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiResponse<unknown>>) => {
+  (error: AxiosError<any>) => {
     const status = error.response?.status;
-    const message = error.response?.data?.message || error.message || '请求失败';
+    const data = error.response?.data;
+    // FastAPI 的 HTTPException 走 {"detail": "..."}，
+    // 统一响应走 {"code","message","data"}，两边都要读得到
+    const detail = typeof data?.detail === 'string'
+      ? data.detail
+      : Array.isArray(data?.detail)
+        ? data.detail.map((item: any) => item?.msg).filter(Boolean).join('；')
+        : undefined;
+    const message = data?.message || detail || error.message || '请求失败';
 
     if (status === 401) {
       localStorage.removeItem('token');

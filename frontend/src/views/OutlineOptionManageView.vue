@@ -12,7 +12,7 @@
     </header>
 
     <el-card class="manager-card" shadow="never">
-      <el-tabs v-model="activeType" @tab-change="loadCurrentType">
+      <el-tabs v-model="activeType" @tab-change="handleTabChange">
         <el-tab-pane label="题材" name="GENRE" />
         <el-tab-pane label="漫剧风格" name="STYLE" />
       </el-tabs>
@@ -115,7 +115,19 @@ const dialogTitle = computed(() => `${editingId.value ? '编辑' : '新增'}${ac
 onMounted(loadCurrentType);
 
 async function loadCurrentType() {
+  outlineOptionStore.setActiveType(activeType.value);
   await outlineOptionStore.fetchOptions(activeType.value);
+}
+
+async function handleTabChange(name: string | number) {
+  const nextType = name as StoryOutlineOptionType;
+  if (nextType !== 'GENRE' && nextType !== 'STYLE') {
+    return;
+  }
+  activeType.value = nextType;
+  outlineOptionStore.setActiveType(nextType);
+  // activeType 一改，表格立刻切到该类型的缓存，再拉一次最新数据覆盖
+  await outlineOptionStore.fetchOptions(nextType);
 }
 
 function openCreateDialog() {

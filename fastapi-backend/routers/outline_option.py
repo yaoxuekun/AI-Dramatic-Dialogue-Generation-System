@@ -15,14 +15,30 @@ from repositories import outline_option_repository
 router = APIRouter()
 
 
+_VALID_OPTION_TYPES = ("GENRE", "STYLE")
+
+
 @router.get("/story-outline-options")
 def get_outline_options(
+    type: Optional[str] = Query(None, description="按类型筛选：GENRE(题材) 或 STYLE(漫剧风格)"),
     enabled: Optional[bool] = Query(None, description="按启用状态筛选"),
     current_user: dict = Depends(get_current_user),
     conn: Connection = Depends(get_db),
 ):
-    """获取大纲配置列表（所有登录用户可用）"""
-    options = outline_option_repository.find_all(conn, enabled=enabled)
+    """获取大纲配置列表（所有登录用户可用）。
+
+    前端「题材」与「漫剧风格」两个页签靠 type 参数区分，
+    不传 type 时返回全部配置。
+    """
+    if type is not None and type not in _VALID_OPTION_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"type 只支持 {' / '.join(_VALID_OPTION_TYPES)}",
+        )
+
+    options = outline_option_repository.find_all(
+        conn, option_type=type, enabled=enabled
+    )
     return success_response(data=options, message="获取成功")
 
 
