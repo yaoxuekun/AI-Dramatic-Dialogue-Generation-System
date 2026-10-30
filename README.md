@@ -289,7 +289,7 @@ draft → generating → volume_pending → volume_section_pending
    - 确认 RabbitMQ 连接正常
 3. **故事状态变为 failed**
    - 查看 Python 控制台日志
-   - 确认mimo-v2.5 API Key 有效
+   - 确认 API Key 有效
 4. **图片无法显示**
    - 确认图片生成 API Key 有效
    - 确认 `storage/` 目录有写入权限
